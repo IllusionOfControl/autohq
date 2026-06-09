@@ -25,6 +25,26 @@ export default defineEventHandler(async (event) => {
 
   const supabase = createClient(supabaseUrl, supabaseKey)
 
+  let siteEnabled = true
+  let telegramEnabled = true
+
+  if (body.source) {
+    const { data: settings } = await supabase
+      .from('source_settings')
+      .select('site_enabled, telegram_enabled')
+      .eq('source_id', body.source)
+      .single()
+
+    if (settings) {
+      siteEnabled = settings.site_enabled
+      telegramEnabled = settings.telegram_enabled
+    }
+  }
+
+  if (!siteEnabled) {
+    return { ok: true, skipped: true, telegram_notify: false }
+  }
+
   const { data, error } = await supabase.from('jobs').insert({
     title: String(body.title),
     company: String(body.company),
@@ -42,5 +62,5 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, message: error.message })
   }
 
-  return { ok: true, id: data.id }
+  return { ok: true, id: data.id, telegram_notify: telegramEnabled }
 })
