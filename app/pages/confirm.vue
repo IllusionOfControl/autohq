@@ -1,6 +1,17 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'auth' })
 useHead({ title: 'Signing in…' })
+
+const client = useSupabaseClient()
+const route = useRoute()
+
+onMounted(async () => {
+  const code = route.query.code as string | undefined
+  if (code) {
+    await client.auth.exchangeCodeForSession(code)
+  }
+  await navigateTo('/')
+})
 </script>
 
 <template>
