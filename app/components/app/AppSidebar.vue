@@ -5,6 +5,17 @@ import {
   SidebarMenuItem, SidebarRail,
 } from '~/components/ui/sidebar'
 
+const supabase = useSupabaseClient()
+const user = useSupabaseUser()
+
+const avatarUrl = computed(() => user.value?.user_metadata?.avatar_url as string | undefined)
+const displayName = computed(() => (user.value?.user_metadata?.full_name as string | undefined) ?? 'You')
+
+async function signOut() {
+  await supabase.auth.signOut()
+  await navigateTo('/login')
+}
+
 const nav = [
   {
     label: 'Workspace',
@@ -66,12 +77,23 @@ const route = useRoute()
     <SidebarFooter>
       <SidebarMenu>
         <SidebarMenuItem>
-          <SidebarMenuButton size="sm" as-child>
-            <NuxtLink href="/settings">
-              <Icon name="lucide:circle-user" class="size-4" />
-              <span class="truncate text-sm">Sasha</span>
-            </NuxtLink>
-          </SidebarMenuButton>
+          <div class="flex items-center gap-2 px-2 py-1.5">
+            <img
+              v-if="avatarUrl"
+              :src="avatarUrl"
+              :alt="displayName"
+              class="size-6 rounded-full object-cover shrink-0"
+            />
+            <Icon v-else name="lucide:circle-user" class="size-6 text-muted-foreground shrink-0" />
+            <span class="truncate text-sm flex-1">{{ displayName }}</span>
+            <button
+              @click="signOut"
+              title="Sign out"
+              class="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Icon name="lucide:log-out" class="size-4" />
+            </button>
+          </div>
         </SidebarMenuItem>
       </SidebarMenu>
     </SidebarFooter>

@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const supabaseUrl = process.env.NUXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.NUXT_PUBLIC_SUPABASE_KEY
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NUXT_PUBLIC_SUPABASE_KEY
 
   if (!supabaseUrl || !supabaseKey) {
     throw createError({ statusCode: 500, message: 'Supabase not configured' })
