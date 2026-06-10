@@ -40,6 +40,14 @@ const form = reactive({
   notes: job.value.notes ?? '',
 })
 
+const copied = ref(false)
+async function copyCoverLetter() {
+  if (!job.value?.cover_letter) return
+  await navigator.clipboard.writeText(job.value.cover_letter)
+  copied.value = true
+  setTimeout(() => { copied.value = false }, 2000)
+}
+
 const statusConfig: Record<JobStatus, { label: string; class: string }> = {
   new:          { label: 'New',        class: 'bg-blue-500/10 text-blue-500 border-blue-500/20' },
   reviewing:    { label: 'Reviewing',  class: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' },
@@ -176,12 +184,29 @@ async function deleteJob() {
         />
       </div>
 
+      <div v-if="job?.score_reason" class="rounded-lg bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+        <span class="font-medium text-foreground">AI Score reason:</span> {{ job.score_reason }}
+      </div>
+
       <div v-if="job?.applied_at" class="text-xs text-muted-foreground">
         Applied: {{ new Date(job.applied_at).toLocaleDateString() }}
       </div>
 
       <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
+    </div>
 
+    <div v-if="job?.cover_letter" class="rounded-xl border bg-card p-6 space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold">Cover Letter</h2>
+        <Button variant="outline" size="sm" @click="copyCoverLetter">
+          <Icon :name="copied ? 'lucide:check' : 'lucide:copy'" class="size-4 mr-1" />
+          {{ copied ? 'Copied!' : 'Copy' }}
+        </Button>
+      </div>
+      <pre class="whitespace-pre-wrap text-sm text-muted-foreground font-sans leading-relaxed">{{ job.cover_letter }}</pre>
+    </div>
+
+    <div class="rounded-xl border bg-card p-6 space-y-4">
       <div class="flex items-center justify-between pt-2">
         <Button :disabled="saving" @click="save">
           <Icon v-if="saving" name="lucide:loader-circle" class="size-4 mr-1 animate-spin" />

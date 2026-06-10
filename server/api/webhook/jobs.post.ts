@@ -45,6 +45,8 @@ export default defineEventHandler(async (event) => {
     return { ok: true, skipped: true, telegram_notify: false }
   }
 
+  const fitScore = body.fit_score != null ? Number(body.fit_score) : null
+
   const { data, error } = await supabase.from('jobs').insert({
     title: String(body.title),
     company: String(body.company),
@@ -52,15 +54,24 @@ export default defineEventHandler(async (event) => {
     location: body.location ? String(body.location) : null,
     remote: Boolean(body.remote ?? false),
     status: body.status ?? 'new',
-    fit_score: body.fit_score != null ? Number(body.fit_score) : null,
+    fit_score: fitScore,
     salary_min: body.salary_min != null ? Number(body.salary_min) : null,
     salary_max: body.salary_max != null ? Number(body.salary_max) : null,
     notes: body.notes ? String(body.notes) : null,
+    description: body.description ? String(body.description) : null,
+    cover_letter: body.cover_letter ? String(body.cover_letter) : null,
+    score_reason: body.score_reason ? String(body.score_reason) : null,
   }).select('id').single()
 
   if (error) {
+    // Duplicate URL — silently skip
+    if (error.code === '23505') {
+      return { ok: true, skipped: true, telegram_notify: false }
+    }
     throw createError({ statusCode: 500, message: error.message })
   }
 
-  return { ok: true, id: data.id, telegram_notify: telegramEnabled }
+  // Only send Telegram if score >= 70 (7/10) or no score yet
+  const scorePassed = fitScore === null || fitScore >= 70
+  return { ok: true, id: data.id, telegram_notify: telegramEnabled && scorePassed }
 })
