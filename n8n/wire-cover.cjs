@@ -48,22 +48,21 @@ if (!assigns.find(a => a.name === 'description')) {
   })
 }
 
-// 3) new cover-letter prompt
+// 3) new cover-letter prompt — deterministic language by job text (Cyrillic)
 const esc = s => s.replace(/\n/g, '\\n')
-const EN = "($('Get Resume').item.json.en || '')"
-const RU = "($('Get Resume').item.json.ru || '')"
+const ISRU = "/[\\u0400-\\u04FF]/.test(($('Map fields').item.json.title || '') + ($('Map fields').item.json.description || ''))"
+const LANGNAME = '(' + ISRU + " ? 'Russian' : 'English')"
+const RESUME = '(' + ISRU + " ? ($('Get Resume').item.json.ru || '') : ($('Get Resume').item.json.en || ''))"
 const TITLE = "($('Map fields').item.json.title || '')"
 const COMPANY = "($('Map fields').item.json.company || '')"
 const DESC = "($('Map fields').item.json.description || '')"
 
-const SEG1 = 'You are writing a tailored cover letter on behalf of the candidate.\n\n'
-  + 'LANGUAGE: detect the language of the JOB from its title and description, then write the ENTIRE letter in that language (a Russian job produces a Russian letter, an English job produces an English letter). Use the candidate resume written in that same language.\n\n'
-  + '=== CANDIDATE RESUME (English) ===\n'
-const SEG2 = '\n=== CANDIDATE RESUME (Russian) ===\n'
-const SEG3 = '\n\n=== JOB ===\nTitle: '
-const SEG4 = '\nCompany: '
-const SEG5 = '\nDescription: '
-const SEG6 = '\n\n=== RULES ===\n'
+const HEAD1 = 'You are writing a tailored cover letter on behalf of the candidate. Write the ENTIRE letter in '
+const HEAD2 = ' only. Do not use any other language.\n\n=== CANDIDATE RESUME ===\n'
+const SEGJOB = '\n\n=== JOB ===\nTitle: '
+const SEGCO = '\nCompany: '
+const SEGDESC = '\nDescription: '
+const SEGRULES = '\n\n=== RULES ===\n'
   + '- 3 to 4 short paragraphs. No header, no date, no salutation line. Start directly with the first content paragraph.\n'
   + '- Connect 2 to 3 concrete things from the resume to specific requirements in the job description.\n'
   + '- Professional but human tone. Avoid cliches such as excited to apply, passionate developer, or I am writing to.\n'
@@ -71,12 +70,12 @@ const SEG6 = '\n\n=== RULES ===\n'
   + '- End with one clear call to action. Output ONLY the letter text, nothing else.'
 
 const content =
-  "'" + esc(SEG1) + "' + " + EN +
-  " + '" + esc(SEG2) + "' + " + RU +
-  " + '" + esc(SEG3) + "' + " + TITLE +
-  " + '" + esc(SEG4) + "' + " + COMPANY +
-  " + '" + esc(SEG5) + "' + " + DESC +
-  " + '" + esc(SEG6) + "'"
+  "'" + esc(HEAD1) + "' + " + LANGNAME +
+  " + '" + esc(HEAD2) + "' + " + RESUME +
+  " + '" + esc(SEGJOB) + "' + " + TITLE +
+  " + '" + esc(SEGCO) + "' + " + COMPANY +
+  " + '" + esc(SEGDESC) + "' + " + DESC +
+  " + '" + esc(SEGRULES) + "'"
 
 cl.parameters.specifyBody = 'json'
 cl.parameters.sendBody = true
