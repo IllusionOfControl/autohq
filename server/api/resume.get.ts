@@ -9,10 +9,30 @@ const PATHS: Record<string, string> = {
   ru: 'Personal/Resume RU.md',
 }
 
+async function fetchRaw(path: string, token: string): Promise<string> {
+  return $fetch<string>(`https://api.github.com/repos/${REPO}/contents/${encodeURI(path)}`, {
+    headers: { Authorization: `token ${token}`, 'User-Agent': 'AutoHQ', Accept: 'application/vnd.github.raw' },
+    responseType: 'text',
+  })
+}
+
 export default defineEventHandler(async (event) => {
-  const lang = (getQuery(event).lang as string) === 'ru' ? 'ru' : 'en'
-  const path = PATHS[lang]
+  const q = (getQuery(event).lang as string) || 'en'
   const token = process.env.GITHUB_TOKEN || process.env.NUXT_GITHUB_TOKEN
+
+  // n8n convenience: both resumes in one call
+  if (q === 'both') {
+    if (!token) return { en: '', ru: '', error: 'no-token' }
+    try {
+      const [en, ru] = await Promise.all([fetchRaw(PATHS.en, token), fetchRaw(PATHS.ru, token)])
+      return { en, ru, error: null }
+    } catch {
+      return { en: '', ru: '', error: 'fetch-failed' }
+    }
+  }
+
+  const lang = q === 'ru' ? 'ru' : 'en'
+  const path = PATHS[lang]
 
   if (!token) {
     return { lang, path, content: '', error: 'no-token' }
