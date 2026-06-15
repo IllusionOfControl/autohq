@@ -2,6 +2,15 @@
 import { useStorage } from '@vueuse/core'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '~/components/ui/select'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '~/components/ui/dropdown-menu'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '~/components/ui/dialog'
 import { JOB_STATUS, PIPELINE, BOARD_COLUMNS, scoreColor, type JobStatus } from '~/composables/useJobStatus'
 
 definePageMeta({ layout: 'default' })
@@ -18,15 +27,40 @@ interface Job {
   created_at: string
   applied_at: string | null
   url: string | null
+  source: string | null
 }
 
 const supabase = useSupabaseClient()
 const view = useStorage<'board' | 'table'>('autohq:jobs-view', 'board')
 const search = ref('')
 const statusFilter = ref<'all' | JobStatus>('all')
+const sourceFilter = ref<'all' | string>('all')
 const sortBy = ref<'score' | 'date'>('score')
 const jobs = ref<Job[]>([])
 const loading = ref(true)
+
+const SOURCE_LABELS: Record<string, string> = {
+  remotive: 'Remotive',
+  arbeitnow: 'Arbeitnow',
+  habr: 'Habr Career',
+  hh: 'HH.ru',
+  djinni: 'Djinni',
+  unknown: 'Other',
+}
+function sourceLabel(s: string | null): string {
+  if (!s) return 'Other'
+  return SOURCE_LABELS[s] ?? s
+}
+
+/** distinct sources present in the data, with counts, most common first */
+const sources = computed(() => {
+  const map = new Map<string, number>()
+  for (const j of jobs.value) {
+    const s = j.source ?? 'unknown'
+    map.set(s, (map.get(s) ?? 0) + 1)
+  }
+  return [...map.entries()].sort((a, b) => b[1] - a[1])
+})
 
 const counts = computed(() => {
   const result: Record<string, number> = { all: jobs.value.length }
@@ -35,21 +69,26 @@ const counts = computed(() => {
   return result
 })
 
+function matchSource(j: Job) {
+  return sourceFilter.value === 'all' || (j.source ?? 'unknown') === sourceFilter.value
+}
+
 const filtered = computed(() => {
   const q = search.value.toLowerCase()
   let list = jobs.value.filter(j => {
     const matchSearch = !q || j.title.toLowerCase().includes(q) || j.company.toLowerCase().includes(q)
     const matchStatus = statusFilter.value === 'all' || j.status === statusFilter.value
-    return matchSearch && matchStatus
+    return matchSearch && matchStatus && matchSource(j)
   })
   if (sortBy.value === 'score') list = [...list].sort((a, b) => (b.fit_score ?? -1) - (a.fit_score ?? -1))
   return list
 })
 
-/** jobs grouped per board column, honoring the search box */
+/** jobs grouped per board column, honoring the search box + source filter */
 const board = computed(() => {
   const q = search.value.toLowerCase()
-  const visible = jobs.value.filter(j => !q || j.title.toLowerCase().includes(q) || j.company.toLowerCase().includes(q))
+  const visible = jobs.value.filter(j =>
+    (!q || j.title.toLowerCase().includes(q) || j.company.toLowerCase().includes(q)) && matchSource(j))
   return BOARD_COLUMNS.map(status => ({
     status,
     ...JOB_STATUS[status],
@@ -63,10 +102,88 @@ async function fetchJobs() {
   loading.value = true
   const { data } = await supabase
     .from('jobs')
-    .select('id, title, company, location, remote, status, fit_score, created_at, applied_at, url')
+    .select('id, title, company, location, remote, status, fit_score, created_at, applied_at, url, source')
     .order('created_at', { ascending: false })
   jobs.value = (data as Job[]) ?? []
   loading.value = false
+}
+
+// ── Selection (table view) ───────────────────
+const selected = ref<Set<string>>(new Set())
+const selectionCount = computed(() => selected.value.size)
+
+function toggleOne(id: string) {
+  const s = new Set(selected.value)
+  s.has(id) ? s.delete(id) : s.add(id)
+  selected.value = s
+}
+const allVisibleSelected = computed(() =>
+  filtered.value.length > 0 && filtered.value.every(j => selected.value.has(j.id)))
+function toggleAll() {
+  const s = new Set(selected.value)
+  if (allVisibleSelected.value) filtered.value.forEach(j => s.delete(j.id))
+  else filtered.value.forEach(j => s.add(j.id))
+  selected.value = s
+}
+function clearSelection() {
+  selected.value = new Set()
+}
+
+// ── Delete (single + bulk) ───────────────────
+const confirmOpen = ref(false)
+const pendingDelete = ref<string[]>([])
+const deleting = ref(false)
+
+function askDelete(ids: string[]) {
+  if (!ids.length) return
+  pendingDelete.value = ids
+  confirmOpen.value = true
+}
+async function doDelete() {
+  const ids = pendingDelete.value
+  if (!ids.length) return
+  deleting.value = true
+  const prev = jobs.value
+  jobs.value = jobs.value.filter(j => !ids.includes(j.id)) // optimistic
+  const s = new Set(selected.value)
+  ids.forEach(i => s.delete(i))
+  selected.value = s
+  const { error } = await supabase.from('jobs').delete().in('id', ids)
+  deleting.value = false
+  confirmOpen.value = false
+  pendingDelete.value = []
+  if (error) {
+    jobs.value = prev // rollback
+    alert('Delete failed: ' + error.message)
+  }
+}
+
+// ── Bulk status change ───────────────────────
+async function bulkStatus(status: JobStatus) {
+  const ids = [...selected.value]
+  if (!ids.length) return
+  const prev = jobs.value.map(j => ({ id: j.id, status: j.status, applied_at: j.applied_at }))
+  const now = new Date().toISOString()
+  const patch: Record<string, unknown> = { status }
+  if (status === 'applied') patch.applied_at = now
+  jobs.value.forEach(j => {
+    if (ids.includes(j.id)) {
+      j.status = status
+      if (status === 'applied' && !j.applied_at) j.applied_at = now
+    }
+  })
+  const { error } = await supabase.from('jobs').update(patch).in('id', ids)
+  if (error) {
+    // rollback
+    const map = new Map(prev.map(p => [p.id, p]))
+    jobs.value.forEach(j => {
+      const p = map.get(j.id)
+      if (p) { j.status = p.status as JobStatus; j.applied_at = p.applied_at }
+    })
+    alert('Update failed: ' + error.message)
+  } else {
+    clearSelection()
+  }
 }
 
 // ── Drag & drop ──────────────────────────────
@@ -136,12 +253,28 @@ onMounted(fetchJobs)
       </div>
     </div>
 
-    <!-- Search + (table-only) filters -->
+    <!-- Search + source filter + (table-only) status filters -->
     <div class="flex flex-wrap items-center gap-2">
       <div class="relative flex-1 min-w-[200px] max-w-xs">
         <Icon name="lucide:search" class="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
         <Input v-model="search" placeholder="Search title or company…" class="pl-8" />
       </div>
+
+      <!-- Source filter (both views) -->
+      <Select v-model="sourceFilter">
+        <SelectTrigger class="w-[170px]">
+          <span class="flex items-center gap-1.5">
+            <Icon name="lucide:rss" class="size-3.5 text-muted-foreground" />
+            <SelectValue placeholder="All sources" />
+          </span>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All sources ({{ jobs.length }})</SelectItem>
+          <SelectItem v-for="[s, c] in sources" :key="s" :value="s">
+            {{ sourceLabel(s === 'unknown' ? null : s) }} ({{ c }})
+          </SelectItem>
+        </SelectContent>
+      </Select>
 
       <template v-if="view === 'table'">
         <button
@@ -168,6 +301,42 @@ onMounted(fetchJobs)
           {{ sortBy === 'score' ? 'By score' : 'By date' }}
         </button>
       </template>
+    </div>
+
+    <!-- Bulk action bar (table view, when rows selected) -->
+    <div
+      v-if="view === 'table' && selectionCount > 0"
+      class="flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2"
+    >
+      <span class="text-sm font-medium">{{ selectionCount }} selected</span>
+      <span class="text-muted-foreground text-xs">·</span>
+      <Button size="sm" variant="destructive" @click="askDelete([...selected])">
+        <Icon name="lucide:trash-2" class="size-3.5 mr-1" />
+        Delete
+      </Button>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button size="sm" variant="outline">
+            <Icon name="lucide:arrow-right-left" class="size-3.5 mr-1" />
+            Move to…
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem v-for="s in PIPELINE" :key="s" @click="bulkStatus(s)">
+            <span :class="['size-2 rounded-full mr-2', JOB_STATUS[s].dot]" />
+            {{ JOB_STATUS[s].label }}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Button size="sm" variant="outline" @click="bulkStatus('archived')">
+        <Icon name="lucide:archive" class="size-3.5 mr-1" />
+        Archive
+      </Button>
+      <Button size="sm" variant="ghost" class="ml-auto" @click="clearSelection">
+        Clear
+      </Button>
     </div>
 
     <!-- Loading -->
@@ -219,10 +388,17 @@ onMounted(fetchJobs)
               @dragstart="onDragStart(job)"
               @dragend="onDragEnd"
               @click="navigateTo(`/jobs/${job.id}`)"
-              :class="['group cursor-grab active:cursor-grabbing rounded-lg border bg-card p-3 transition-all hover:border-primary/40',
+              :class="['group relative cursor-grab active:cursor-grabbing rounded-lg border bg-card p-3 transition-all hover:border-primary/40',
                 draggingId === job.id ? 'opacity-40 ring-1 ring-primary' : '']"
             >
-              <div class="flex items-start justify-between gap-2">
+              <button
+                class="absolute right-1.5 top-1.5 hidden group-hover:flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                title="Delete"
+                @click.stop="askDelete([job.id])"
+              >
+                <Icon name="lucide:trash-2" class="size-3.5" />
+              </button>
+              <div class="flex items-start justify-between gap-2 pr-5">
                 <p class="text-sm font-medium leading-tight line-clamp-2 group-hover:text-primary transition-colors">{{ job.title }}</p>
                 <span
                   v-if="job.fit_score != null"
@@ -230,11 +406,12 @@ onMounted(fetchJobs)
                 >{{ job.fit_score }}</span>
               </div>
               <p class="mt-1 text-xs text-muted-foreground truncate">{{ job.company }}</p>
-              <div class="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+              <div class="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                 <span class="flex items-center gap-1 truncate">
                   <Icon :name="job.remote ? 'lucide:globe' : 'lucide:map-pin'" class="size-3 shrink-0" />
                   {{ job.remote ? 'Remote' : (job.location || '—') }}
                 </span>
+                <span v-if="job.source" class="shrink-0 rounded bg-muted/60 px-1.5 py-0.5">{{ sourceLabel(job.source) }}</span>
               </div>
             </div>
 
@@ -257,11 +434,21 @@ onMounted(fetchJobs)
       <table class="w-full text-sm">
         <thead class="border-b bg-muted/30 text-xs uppercase tracking-wide">
           <tr>
+            <th class="w-10 px-3 py-2.5">
+              <input
+                type="checkbox"
+                class="size-4 rounded border-border accent-primary cursor-pointer align-middle"
+                :checked="allVisibleSelected"
+                @change="toggleAll"
+              >
+            </th>
             <th class="text-left px-4 py-2.5 font-medium text-muted-foreground">Position</th>
+            <th class="text-left px-4 py-2.5 font-medium text-muted-foreground hidden md:table-cell">Source</th>
             <th class="text-left px-4 py-2.5 font-medium text-muted-foreground hidden md:table-cell">Location</th>
             <th class="text-left px-4 py-2.5 font-medium text-muted-foreground">Status</th>
             <th class="text-left px-4 py-2.5 font-medium text-muted-foreground hidden sm:table-cell">Fit</th>
             <th class="text-left px-4 py-2.5 font-medium text-muted-foreground hidden lg:table-cell">Added</th>
+            <th class="w-10 px-3 py-2.5" />
           </tr>
         </thead>
         <tbody>
@@ -269,11 +456,23 @@ onMounted(fetchJobs)
             v-for="job in filtered"
             :key="job.id"
             class="border-b last:border-0 hover:bg-accent/50 transition-colors cursor-pointer"
+            :class="selected.has(job.id) ? 'bg-primary/5' : ''"
             @click="navigateTo(`/jobs/${job.id}`)"
           >
+            <td class="px-3 py-3" @click.stop>
+              <input
+                type="checkbox"
+                class="size-4 rounded border-border accent-primary cursor-pointer align-middle"
+                :checked="selected.has(job.id)"
+                @change="toggleOne(job.id)"
+              >
+            </td>
             <td class="px-4 py-3">
               <div class="font-medium leading-tight">{{ job.title }}</div>
               <div class="text-muted-foreground text-xs mt-0.5">{{ job.company }}</div>
+            </td>
+            <td class="px-4 py-3 text-muted-foreground text-xs hidden md:table-cell">
+              {{ sourceLabel(job.source) }}
             </td>
             <td class="px-4 py-3 text-muted-foreground text-xs hidden md:table-cell">
               {{ job.remote ? '🌍 Remote' : (job.location ?? '—') }}
@@ -292,6 +491,15 @@ onMounted(fetchJobs)
             <td class="px-4 py-3 text-muted-foreground text-xs hidden lg:table-cell">
               {{ new Date(job.created_at).toLocaleDateString() }}
             </td>
+            <td class="px-3 py-3" @click.stop>
+              <button
+                class="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                title="Delete"
+                @click="askDelete([job.id])"
+              >
+                <Icon name="lucide:trash-2" class="size-4" />
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -299,8 +507,28 @@ onMounted(fetchJobs)
 
     <p v-if="view === 'board' && jobs.length" class="text-xs text-muted-foreground flex items-center gap-1.5">
       <Icon name="lucide:move" class="size-3.5" />
-      Drag cards between columns to change status.
+      Drag cards between columns to change status. Hover a card to delete it.
     </p>
+
+    <!-- Delete confirmation -->
+    <Dialog v-model:open="confirmOpen">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete {{ pendingDelete.length }} job{{ pendingDelete.length > 1 ? 's' : '' }}?</DialogTitle>
+          <DialogDescription>
+            This permanently removes {{ pendingDelete.length > 1 ? 'these jobs' : 'this job' }} from the database. This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="ghost" :disabled="deleting" @click="confirmOpen = false">Cancel</Button>
+          <Button variant="destructive" :disabled="deleting" @click="doDelete">
+            <Icon v-if="deleting" name="lucide:loader-2" class="size-4 mr-1 animate-spin" />
+            <Icon v-else name="lucide:trash-2" class="size-4 mr-1" />
+            Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
   </div>
 </template>
