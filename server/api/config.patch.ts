@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   }
 
   if (Object.keys(updates).length === 0) {
-    throw createError({ statusCode: 400, message: 'No valid fields to update' })
+    throw createError({ status: 400, message: 'No valid fields to update' })
   }
   updates.updated_at = new Date().toISOString()
 

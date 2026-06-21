@@ -1,18 +1,18 @@
 export default defineEventHandler(async (event) => {
   const secret = process.env.WEBHOOK_SECRET || process.env.NUXT_WEBHOOK_SECRET
   if (!secret) {
-    throw createError({ statusCode: 500, message: 'WEBHOOK_SECRET is not configured' })
+    throw createError({ status: 500, message: 'WEBHOOK_SECRET is not configured' })
   }
 
   const authHeader = getHeader(event, 'x-webhook-secret')
   if (authHeader !== secret) {
-    throw createError({ statusCode: 401, message: 'Unauthorized' })
+    throw createError({ status: 401, message: 'Unauthorized' })
   }
 
   const body = await readBody(event)
 
   if (!body?.title || !body?.company) {
-    throw createError({ statusCode: 400, message: 'title and company are required' })
+    throw createError({ status: 400, message: 'title and company are required' })
   }
 
   const sql = useDb()
@@ -64,7 +64,7 @@ export default defineEventHandler(async (event) => {
     if (e?.code === '23505') {
       return { ok: true, skipped: true, telegram_notify: false }
     }
-    throw createError({ statusCode: 500, message: e?.message ?? 'Insert failed' })
+    throw createError({ status: 500, message: e?.message ?? 'Insert failed' })
   }
 
   // Telegram threshold is a live setting (app_config), default 70
