@@ -4,15 +4,9 @@ import { JOB_STATUS, PIPELINE, APPLIED_STATUSES, scoreColor, type JobStatus } fr
 definePageMeta({ layout: 'default' })
 useHead({ title: 'Dashboard' })
 
-const supabase = useSupabaseClient()
-
-const { data: jobs } = await useAsyncData('dashboard-jobs', async () => {
-  const { data } = await supabase
-    .from('jobs')
-    .select('id, status, fit_score, created_at, title, company, url')
-    .order('created_at', { ascending: false })
-  return data ?? []
-})
+const { data: jobs } = await useAsyncData('dashboard-jobs', () =>
+  $fetch('/api/jobs'),
+)
 
 const all = computed(() => jobs.value ?? [])
 

@@ -1,5 +1,3 @@
-import { createClient } from '@supabase/supabase-js'
-
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
 
@@ -17,15 +15,14 @@ export default defineEventHandler(async (event) => {
   }
   updates.updated_at = new Date().toISOString()
 
-  const supabase = createClient(
-    process.env.NUXT_PUBLIC_SUPABASE_URL!,
-    process.env.NUXT_PUBLIC_SUPABASE_KEY!,
-  )
+  const sql = useDb()
+  const row = { id: 1, ...updates }
+  const cols = Object.keys(updates)
 
-  const { error } = await supabase
-    .from('app_config')
-    .upsert({ id: 1, ...updates })
+  await sql`
+    insert into app_config ${sql(row)}
+    on conflict (id) do update set ${sql(row, ...cols)}
+  `
 
-  if (error) throw createError({ statusCode: 500, message: error.message })
   return { ok: true }
 })

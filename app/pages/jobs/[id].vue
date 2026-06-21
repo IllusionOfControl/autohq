@@ -6,7 +6,6 @@ import { JOB_STATUS, PIPELINE, scoreColor, type JobStatus } from '~/composables/
 definePageMeta({ layout: 'default' })
 
 const route = useRoute()
-const supabase = useSupabaseClient()
 const router = useRouter()
 const saving = ref(false)
 const deleting = ref(false)
@@ -15,10 +14,9 @@ const error = ref('')
 
 const STATUS_PIPELINE = PIPELINE
 
-const { data: job, refresh } = await useAsyncData(`job-${route.params.id}`, async () => {
-  const { data } = await supabase.from('jobs').select('*').eq('id', route.params.id).single()
-  return data
-})
+const { data: job, refresh } = await useAsyncData(`job-${route.params.id}`, () =>
+  $fetch(`/api/jobs/${route.params.id}`),
+)
 
 if (!job.value) throw createError({ statusCode: 404, message: 'Job not found' })
 
@@ -54,7 +52,10 @@ async function quickSetStatus(newStatus: JobStatus) {
     ? new Date().toISOString()
     : (job.value?.applied_at ?? null)
   form.status = newStatus
-  await supabase.from('jobs').update({ status: newStatus, applied_at: appliedAt }).eq('id', route.params.id)
+  await $fetch(`/api/jobs/${route.params.id}`, {
+    method: 'PATCH',
+    body: { status: newStatus, applied_at: appliedAt },
+  })
   await refresh()
   statusSaving.value = false
 }
@@ -62,28 +63,35 @@ async function quickSetStatus(newStatus: JobStatus) {
 async function save() {
   saving.value = true
   error.value = ''
-  const { error: err } = await supabase.from('jobs').update({
-    title: form.title,
-    company: form.company,
-    url: form.url || null,
-    location: form.location || null,
-    remote: form.remote,
-    status: form.status,
-    fit_score: form.fit_score,
-    salary_min: form.salary_min,
-    salary_max: form.salary_max,
-    notes: form.notes || null,
-    applied_at: form.status === 'applied' && !job.value?.applied_at ? new Date().toISOString() : job.value?.applied_at,
-  }).eq('id', route.params.id)
-  saving.value = false
-  if (err) { error.value = err.message; return }
-  await refresh()
+  try {
+    await $fetch(`/api/jobs/${route.params.id}`, {
+      method: 'PATCH',
+      body: {
+        title: form.title,
+        company: form.company,
+        url: form.url || null,
+        location: form.location || null,
+        remote: form.remote,
+        status: form.status,
+        fit_score: form.fit_score,
+        salary_min: form.salary_min,
+        salary_max: form.salary_max,
+        notes: form.notes || null,
+        applied_at: form.status === 'applied' && !job.value?.applied_at ? new Date().toISOString() : job.value?.applied_at,
+      },
+    })
+    await refresh()
+  } catch (e: any) {
+    error.value = e?.data?.message ?? e?.message ?? 'Failed to save'
+  } finally {
+    saving.value = false
+  }
 }
 
 async function deleteJob() {
   if (!confirm(`Delete "${form.title}" at ${form.company}?`)) return
   deleting.value = true
-  await supabase.from('jobs').delete().eq('id', route.params.id)
+  await $fetch(`/api/jobs/${route.params.id}`, { method: 'DELETE' })
   router.push('/jobs')
 }
 </script>

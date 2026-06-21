@@ -1,5 +1,3 @@
-import { createClient } from '@supabase/supabase-js'
-
 export default defineEventHandler(async (event) => {
   const secret = process.env.WEBHOOK_SECRET || process.env.NUXT_WEBHOOK_SECRET
   if (!secret) {
@@ -17,25 +15,17 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'title and company are required' })
   }
 
-  const supabaseUrl = process.env.NUXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NUXT_PUBLIC_SUPABASE_KEY
-
-  if (!supabaseUrl || !supabaseKey) {
-    throw createError({ statusCode: 500, message: 'Supabase not configured' })
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseKey)
+  const sql = useDb()
 
   let siteEnabled = true
   let telegramEnabled = true
 
   if (body.source) {
-    const { data: settings } = await supabase
-      .from('source_settings')
-      .select('site_enabled, telegram_enabled')
-      .eq('source_id', body.source)
-      .single()
-
+    const [settings] = await sql`
+      select site_enabled, telegram_enabled
+      from source_settings
+      where source_id = ${body.source}
+    `
     if (settings) {
       siteEnabled = settings.site_enabled
       telegramEnabled = settings.telegram_enabled
@@ -48,7 +38,7 @@ export default defineEventHandler(async (event) => {
 
   const fitScore = body.fit_score != null ? Number(body.fit_score) : null
 
-  const { data, error } = await supabase.from('jobs').insert({
+  const row = {
     title: String(body.title),
     company: String(body.company),
     url: body.url ? String(body.url) : null,
@@ -63,25 +53,25 @@ export default defineEventHandler(async (event) => {
     cover_letter: body.cover_letter ? String(body.cover_letter) : null,
     score_reason: body.score_reason ? String(body.score_reason) : null,
     source: body.source ? String(body.source) : null,
-  }).select('id').single()
+  }
 
-  if (error) {
+  let id: string | number
+  try {
+    const [created] = await sql`insert into jobs ${sql(row)} returning id`
+    id = created.id
+  } catch (e: any) {
     // Duplicate URL — silently skip
-    if (error.code === '23505') {
+    if (e?.code === '23505') {
       return { ok: true, skipped: true, telegram_notify: false }
     }
-    throw createError({ statusCode: 500, message: error.message })
+    throw createError({ statusCode: 500, message: e?.message ?? 'Insert failed' })
   }
 
   // Telegram threshold is a live setting (app_config), default 70
   let minScore = 70
-  const { data: cfg } = await supabase
-    .from('app_config')
-    .select('telegram_min_score')
-    .eq('id', 1)
-    .single()
+  const [cfg] = await sql`select telegram_min_score from app_config where id = 1`
   if (cfg?.telegram_min_score != null) minScore = cfg.telegram_min_score
 
   const scorePassed = fitScore === null || fitScore >= minScore
-  return { ok: true, id: data.id, telegram_notify: telegramEnabled && scorePassed }
+  return { ok: true, id, telegram_notify: telegramEnabled && scorePassed }
 })

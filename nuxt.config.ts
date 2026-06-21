@@ -8,7 +8,7 @@ export default defineNuxtConfig({
     '@nuxtjs/color-mode',
     '@vueuse/nuxt',
     '@pinia/nuxt',
-    '@nuxtjs/supabase',
+    'nuxt-auth-utils',
     '@nuxt/icon',
   ],
 
@@ -24,25 +24,9 @@ export default defineNuxtConfig({
     fallback: 'dark',
   },
 
-  supabase: {
-    // В dev отключаем авто-редирект на /login, чтобы можно было работать
-    // локально без GitHub-логина (GitHub возвращает на прод). В прод-сборке — включён.
-    redirect: process.env.NODE_ENV !== 'development',
-    redirectOptions: {
-      login: '/login',
-      callback: '/confirm',
-      exclude: ['/login', '/confirm'],
-    },
-  },
-
   runtimeConfig: {
     webhookSecret: process.env.WEBHOOK_SECRET ?? '',
-    supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY ?? '',
-    public: {
-      // GitHub-логин единственного владельца. Любой другой GitHub-аккаунт,
-      // прошедший OAuth, будет разлогинен owner-гейтом. Пусто = гейт выключен.
-      ownerGithub: process.env.OWNER_GITHUB ?? '',
-    },
+    ownerGithub: process.env.OWNER_GITHUB ?? '',
   },
 
   typescript: {

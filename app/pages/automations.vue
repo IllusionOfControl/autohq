@@ -4,8 +4,6 @@ import { Button } from '~/components/ui/button'
 definePageMeta({ layout: 'default' })
 useHead({ title: 'Control' })
 
-const supabase = useSupabaseClient()
-
 // ── Live config (keywords + telegram threshold) ──
 interface AppConfig { keywords: string; telegram_min_score: number }
 const config = reactive<AppConfig>({ keywords: '', telegram_min_score: 70 })
@@ -70,13 +68,10 @@ async function loadSources() {
   }
 }
 async function loadLastImport() {
-  const { data } = await supabase
-    .from('jobs')
-    .select('source, created_at')
-    .not('source', 'is', null)
-    .order('created_at', { ascending: false })
+  // /api/jobs is ordered by created_at desc, so the first hit per source wins.
+  const data = await $fetch<{ source: string | null; created_at: string }[]>('/api/jobs')
   const seen: Record<string, string> = {}
-  for (const row of (data ?? []) as { source: string; created_at: string }[]) {
+  for (const row of data) {
     if (row.source && !seen[row.source]) seen[row.source] = row.created_at
   }
   lastImport.value = seen
@@ -105,7 +100,6 @@ async function toggle(src: SourceSetting, field: 'site_enabled' | 'telegram_enab
 const integrations = [
   { label: 'n8n', sub: 'n8n.credorevolution.space', href: 'https://n8n.credorevolution.space' },
   { label: 'Telegram Bot', sub: '@myfirstgmailbot', href: 'https://t.me/myfirstgmailbot' },
-  { label: 'Supabase', sub: 'lbqzcsauuuqngsfyikcp.supabase.co', href: 'https://supabase.com/dashboard' },
 ]
 
 const webhookOpen = ref(false)

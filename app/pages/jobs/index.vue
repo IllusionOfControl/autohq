@@ -30,7 +30,6 @@ interface Job {
   source: string | null
 }
 
-const supabase = useSupabaseClient()
 const view = useStorage<'board' | 'table'>('autohq:jobs-view', 'board')
 const search = ref('')
 const statusFilter = ref<'all' | JobStatus>('all')
@@ -114,11 +113,7 @@ async function fetchJobs() {
       { id: 'dev-5', title: 'Full-Stack Developer', company: 'Hooli', location: 'Remote', remote: true, status: 'interviewing', fit_score: 92, created_at: ago(10 * 86_400_000), applied_at: ago(86_400_000), url: '#', source: 'arbeitnow' },
     ]
   } else {
-    const { data } = await supabase
-        .from('jobs')
-        .select('id, title, company, location, remote, status, fit_score, created_at, applied_at, url, source')
-        .order('created_at', { ascending: false })
-    jobs.value = (data as Job[]) ?? []
+    jobs.value = await $fetch<Job[]>('/api/jobs')
   }
   loading.value = false
 }
@@ -163,13 +158,15 @@ async function doDelete() {
   const s = new Set(selected.value)
   ids.forEach(i => s.delete(i))
   selected.value = s
-  const { error } = await supabase.from('jobs').delete().in('id', ids)
-  deleting.value = false
-  confirmOpen.value = false
-  pendingDelete.value = []
-  if (error) {
+  try {
+    await $fetch('/api/jobs/bulk', { method: 'DELETE', body: { ids } })
+  } catch (e: any) {
     jobs.value = prev // rollback
-    alert('Delete failed: ' + error.message)
+    alert('Delete failed: ' + (e?.data?.message ?? e?.message ?? 'unknown error'))
+  } finally {
+    deleting.value = false
+    confirmOpen.value = false
+    pendingDelete.value = []
   }
 }
 
@@ -187,17 +184,17 @@ async function bulkStatus(status: JobStatus) {
       if (status === 'applied' && !j.applied_at) j.applied_at = now
     }
   })
-  const { error } = await supabase.from('jobs').update(patch).in('id', ids)
-  if (error) {
+  try {
+    await $fetch('/api/jobs/bulk', { method: 'PATCH', body: { ids, patch } })
+    clearSelection()
+  } catch (e: any) {
     // rollback
     const map = new Map(prev.map(p => [p.id, p]))
     jobs.value.forEach(j => {
       const p = map.get(j.id)
       if (p) { j.status = p.status as JobStatus; j.applied_at = p.applied_at }
     })
-    alert('Update failed: ' + error.message)
-  } else {
-    clearSelection()
+    alert('Update failed: ' + (e?.data?.message ?? e?.message ?? 'unknown error'))
   }
 }
 
@@ -227,8 +224,11 @@ async function onDrop(status: JobStatus) {
     job.applied_at = new Date().toISOString()
     patch.applied_at = job.applied_at
   }
-  const { error } = await supabase.from('jobs').update(patch).eq('id', id)
-  if (error) job.status = prev // rollback
+  try {
+    await $fetch(`/api/jobs/${id}`, { method: 'PATCH', body: patch })
+  } catch {
+    job.status = prev // rollback
+  }
 }
 const now = ref(Date.now())
 

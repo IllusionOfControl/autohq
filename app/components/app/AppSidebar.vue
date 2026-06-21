@@ -5,14 +5,13 @@ import {
   SidebarMenuItem, SidebarRail,
 } from '~/components/ui/sidebar'
 
-const supabase = useSupabaseClient()
-const user = useSupabaseUser()
+const { user, clear } = useUserSession()
 
-const avatarUrl = computed(() => user.value?.user_metadata?.avatar_url as string | undefined)
-const displayName = computed(() => (user.value?.user_metadata?.full_name as string | undefined) ?? 'You')
+const avatarUrl = computed(() => user.value?.avatar as string | undefined)
+const displayName = computed(() => (user.value?.name as string | undefined) ?? 'You')
 
 async function signOut() {
-  await supabase.auth.signOut()
+  await clear()
   await navigateTo('/login')
 }
 

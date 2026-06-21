@@ -6,7 +6,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~
 definePageMeta({ layout: 'default' })
 useHead({ title: 'Add Job' })
 
-const supabase = useSupabaseClient()
 const router = useRouter()
 const saving = ref(false)
 const error = ref('')
@@ -31,21 +30,28 @@ async function save() {
   }
   saving.value = true
   error.value = ''
-  const { error: err } = await supabase.from('jobs').insert({
-    title: form.title,
-    company: form.company,
-    url: form.url || null,
-    location: form.location || null,
-    remote: form.remote,
-    status: form.status,
-    fit_score: form.fit_score,
-    salary_min: form.salary_min,
-    salary_max: form.salary_max,
-    notes: form.notes || null,
-  })
-  saving.value = false
-  if (err) { error.value = err.message; return }
-  router.push('/jobs')
+  try {
+    await $fetch('/api/jobs', {
+      method: 'POST',
+      body: {
+        title: form.title,
+        company: form.company,
+        url: form.url || null,
+        location: form.location || null,
+        remote: form.remote,
+        status: form.status,
+        fit_score: form.fit_score,
+        salary_min: form.salary_min,
+        salary_max: form.salary_max,
+        notes: form.notes || null,
+      },
+    })
+    router.push('/jobs')
+  } catch (e: any) {
+    error.value = e?.data?.message ?? e?.message ?? 'Failed to save'
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 

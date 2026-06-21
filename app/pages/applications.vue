@@ -5,17 +5,16 @@ import { JOB_STATUS, scoreColor, type JobStatus } from '~/composables/useJobStat
 definePageMeta({ layout: 'default' })
 useHead({ title: 'Applications' })
 
-const supabase = useSupabaseClient()
 const jobs = ref<any[]>([])
 const loading = ref(true)
 
 onMounted(async () => {
-  const { data } = await supabase
-    .from('jobs')
-    .select('id, title, company, status, fit_score, applied_at, url')
-    .in('status', ['applied', 'interviewing', 'offer', 'rejected'])
-    .order('applied_at', { ascending: false })
-  jobs.value = data ?? []
+  const data = await $fetch<any[]>('/api/jobs', {
+    query: { status: 'applied,interviewing,offer,rejected' },
+  })
+  jobs.value = [...data].sort((a, b) =>
+    (b.applied_at ? Date.parse(b.applied_at) : 0) - (a.applied_at ? Date.parse(a.applied_at) : 0),
+  )
   loading.value = false
 })
 </script>
