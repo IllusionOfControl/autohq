@@ -97,10 +97,31 @@ async function toggle(src: SourceSetting, field: 'site_enabled' | 'telegram_enab
   }
 }
 
-const integrations = [
-  { label: 'n8n', sub: 'n8n.credorevolution.space', href: 'https://n8n.credorevolution.space' },
-  { label: 'Telegram Bot', sub: '@myfirstgmailbot', href: 'https://t.me/myfirstgmailbot' },
-]
+const runtimeConfig = useRuntimeConfig()
+
+// Интеграции из env (NUXT_PUBLIC_N8N_URL / NUXT_PUBLIC_TELEGRAM_BOT).
+// Незаданные просто не показываются.
+const integrations = computed(() => {
+  const items: { label: string; sub: string; href: string }[] = []
+  const n8n = runtimeConfig.public.n8nUrl
+  if (n8n) {
+    let host = n8n
+    try { host = new URL(n8n).host } catch { /* оставить как есть */ }
+    items.push({ label: 'n8n', sub: host, href: n8n })
+  }
+  const tg = runtimeConfig.public.telegramBot
+  if (tg) {
+    const handle = tg.replace(/^@/, '')
+    items.push({ label: 'Telegram Bot', sub: `@${handle}`, href: `https://t.me/${handle}` })
+  }
+  return items
+})
+
+// Webhook URL = публичный origin (NUXT_PUBLIC_APP_URL или текущий) + путь.
+const requestOrigin = useRequestURL().origin
+const webhookUrl = computed(() =>
+  `${(runtimeConfig.public.appUrl || requestOrigin).replace(/\/$/, '')}/api/webhook/jobs`,
+)
 
 const webhookOpen = ref(false)
 const copied = ref('')
@@ -220,7 +241,7 @@ onMounted(() => { loadConfig(); loadSources(); loadLastImport() })
       <p class="text-sm font-medium flex items-center gap-2">
         <Icon name="lucide:plug" class="size-4 text-muted-foreground" /> Интеграции
       </p>
-      <div class="space-y-2.5">
+      <div v-if="integrations.length" class="space-y-2.5">
         <div v-for="it in integrations" :key="it.label" class="flex items-center justify-between">
           <div class="flex items-center gap-3">
             <span class="size-2 rounded-full bg-emerald-400" />
@@ -234,6 +255,10 @@ onMounted(() => { loadConfig(); loadSources(); loadLastImport() })
           </Button>
         </div>
       </div>
+      <p v-else class="text-xs text-muted-foreground">
+        Задай <code class="bg-muted px-1 rounded">NUXT_PUBLIC_N8N_URL</code> и
+        <code class="bg-muted px-1 rounded">NUXT_PUBLIC_TELEGRAM_BOT</code>, чтобы показать ссылки.
+      </p>
     </div>
 
     <!-- Webhook (reference, collapsed) -->
@@ -246,8 +271,8 @@ onMounted(() => { loadConfig(); loadSources(); loadLastImport() })
       </button>
       <div v-if="webhookOpen" class="mt-4 space-y-3">
         <div class="flex gap-2">
-          <code class="flex-1 rounded-md bg-muted px-3 py-2 text-xs font-mono break-all">POST https://credorevolution.space/api/webhook/jobs</code>
-          <Button variant="outline" size="sm" @click="copy('https://credorevolution.space/api/webhook/jobs', 'url')">
+          <code class="flex-1 rounded-md bg-muted px-3 py-2 text-xs font-mono break-all">POST {{ webhookUrl }}</code>
+          <Button variant="outline" size="sm" @click="copy(webhookUrl, 'url')">
             <Icon :name="copied === 'url' ? 'lucide:check' : 'lucide:copy'" class="size-4" />
           </Button>
         </div>

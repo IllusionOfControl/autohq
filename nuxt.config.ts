@@ -27,6 +27,12 @@ export default defineNuxtConfig({
   runtimeConfig: {
     webhookSecret: process.env.WEBHOOK_SECRET ?? '',
     ownerGithub: process.env.OWNER_GITHUB ?? '',
+    public: {
+      useSampleData: false,
+      n8nUrl: '',          // example: https://n8n.example.com
+      telegramBot: '',     // example: @myfirstgmailbot
+      appUrl: '',          // public origin for webhook URL; empty = current origin
+    },
   },
 
   typescript: {
