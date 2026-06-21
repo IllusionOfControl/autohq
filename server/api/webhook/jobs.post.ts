@@ -55,10 +55,9 @@ export default defineEventHandler(async (event) => {
     source: body.source ? String(body.source) : null,
   }
 
-  let id: string | number
+  let created: { id: string | number } | undefined
   try {
-    const [created] = await sql`insert into jobs ${sql(row)} returning id`
-    id = created.id
+    [created] = await sql`insert into jobs ${sql(row)} returning id`
   } catch (e: any) {
     // Duplicate URL — silently skip
     if (e?.code === '23505') {
@@ -66,6 +65,9 @@ export default defineEventHandler(async (event) => {
     }
     throw createError({ status: 500, message: e?.message ?? 'Insert failed' })
   }
+
+  if (!created) throw createError({ status: 500, message: 'Insert failed' })
+  const id = created.id
 
   // Telegram threshold is a live setting (app_config), default 70
   let minScore = 70
