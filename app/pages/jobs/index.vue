@@ -30,6 +30,7 @@ interface Job {
   source: string | null
 }
 
+const config = useRuntimeConfig()
 const view = useStorage<'board' | 'table'>('autohq:jobs-view', 'board')
 const search = ref('')
 const statusFilter = ref<'all' | JobStatus>('all')
@@ -100,9 +101,9 @@ const board = computed(() => {
 async function fetchJobs() {
   loading.value = true
 
-  // DEV ONLY: локально логина нет → RLS отдаёт пусто. Подкидываем образцы,
-  // чтобы UI было видно. В прод-сборке этот блок вырезается (import.meta.dev).
-  if (import.meta.dev && jobs.value.length === 0) {
+  // Образцы для разработки/демо без подключения к БД. Включается флагом
+  // NUXT_PUBLIC_USE_SAMPLE_DATA=true (см. nuxt.config.ts → runtimeConfig.public).
+  if (config.public.useSampleData && jobs.value.length === 0) {
     const now = Date.now()
     const ago = (ms: number) => new Date(now - ms).toISOString()
     jobs.value = [
