@@ -22,3 +22,7 @@ logs
 .env
 .env.*
 !.env.example
+
+# Live n8n workflow exports — contain the OpenAI API key in node headers
+n8n/live/
+n8n/fixed/
