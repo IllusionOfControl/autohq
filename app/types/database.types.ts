@@ -27,6 +27,8 @@ export interface Database {
           applied_at: string | null
           created_at: string
           updated_at: string
+          cover_letter : string | null
+          score_reason : string | null
         }
         Insert: {
           id?: string
@@ -45,6 +47,7 @@ export interface Database {
           applied_at?: string | null
         }
         Update: Partial<Database['public']['Tables']['jobs']['Insert']>
+        Relationships: []
       }
       profile: {
         Row: {
@@ -66,6 +69,7 @@ export interface Database {
         }
         Insert: Omit<Database['public']['Tables']['profile']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string }
         Update: Partial<Database['public']['Tables']['profile']['Insert']>
+        Relationships: []
       }
     }
     Views: Record<string, never>

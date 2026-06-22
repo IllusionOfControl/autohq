@@ -2,21 +2,24 @@
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { JOB_STATUS, PIPELINE, scoreColor, type JobStatus } from '~/composables/useJobStatus'
+import type { Database } from '~/types/database.types'
 
 definePageMeta({ layout: 'default' })
 
 const route = useRoute()
-const supabase = useSupabaseClient()
+const supabase = useSupabaseClient<Database>()
 const router = useRouter()
 const saving = ref(false)
 const deleting = ref(false)
 const statusSaving = ref(false)
 const error = ref('')
 
+const jobId: string = route.params.id + ''
+
 const STATUS_PIPELINE = PIPELINE
 
-const { data: job, refresh } = await useAsyncData(`job-${route.params.id}`, async () => {
-  const { data } = await supabase.from('jobs').select('*').eq('id', route.params.id).single()
+const { data: job, refresh } = await useAsyncData(`job-${jobId}`, async () => {
+  const { data } = await supabase.from('jobs').select('*').eq('id', jobId).single()
   return data
 })
 
@@ -54,7 +57,7 @@ async function quickSetStatus(newStatus: JobStatus) {
     ? new Date().toISOString()
     : (job.value?.applied_at ?? null)
   form.status = newStatus
-  await supabase.from('jobs').update({ status: newStatus, applied_at: appliedAt }).eq('id', route.params.id)
+  await supabase.from('jobs').update({ status: newStatus, applied_at: appliedAt }).eq('id', jobId)
   await refresh()
   statusSaving.value = false
 }
@@ -74,7 +77,7 @@ async function save() {
     salary_max: form.salary_max,
     notes: form.notes || null,
     applied_at: form.status === 'applied' && !job.value?.applied_at ? new Date().toISOString() : job.value?.applied_at,
-  }).eq('id', route.params.id)
+  }).eq('id', jobId)
   saving.value = false
   if (err) { error.value = err.message; return }
   await refresh()
@@ -83,7 +86,7 @@ async function save() {
 async function deleteJob() {
   if (!confirm(`Delete "${form.title}" at ${form.company}?`)) return
   deleting.value = true
-  await supabase.from('jobs').delete().eq('id', route.params.id)
+  await supabase.from('jobs').delete().eq('id', jobId)
   router.push('/jobs')
 }
 </script>
