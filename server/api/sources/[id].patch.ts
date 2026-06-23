@@ -1,5 +1,3 @@
-import { createClient } from '@supabase/supabase-js'
-
 export default defineEventHandler(async (event) => {
   const sourceId = getRouterParam(event, 'id')
   const body = await readBody(event)
@@ -18,10 +16,7 @@ export default defineEventHandler(async (event) => {
 
   updates.updated_at = new Date().toISOString() as any
 
-  const supabase = createClient(
-    process.env.NUXT_PUBLIC_SUPABASE_URL!,
-    process.env.NUXT_PUBLIC_SUPABASE_KEY!,
-  )
+  const supabase = supabaseAdmin()
 
   const { error } = await supabase
     .from('source_settings')

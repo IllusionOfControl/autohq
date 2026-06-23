@@ -1,5 +1,3 @@
-import { createClient } from '@supabase/supabase-js'
-
 const DEFAULTS = {
   // Plain space-separated terms; each n8n workflow adapts the syntax
   // (HH -> " OR ", Djinni -> "+", Remotive -> as-is).
@@ -14,10 +12,7 @@ const DEFAULTS = {
  */
 export default defineEventHandler(async () => {
   try {
-    const supabase = createClient(
-      process.env.NUXT_PUBLIC_SUPABASE_URL!,
-      process.env.NUXT_PUBLIC_SUPABASE_KEY!,
-    )
+    const supabase = supabaseAdmin()
     const { data, error } = await supabase
       .from('app_config')
       .select('keywords, telegram_min_score')
