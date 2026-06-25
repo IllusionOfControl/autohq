@@ -53,13 +53,14 @@ export default defineEventHandler(async (event) => {
     cover_letter: body.cover_letter ? String(body.cover_letter) : null,
     score_reason: body.score_reason ? String(body.score_reason) : null,
     source: body.source ? String(body.source) : null,
+    external_id: body.external_id != null ? String(body.external_id) : null,
   }
 
   let created: { id: string | number } | undefined
   try {
     [created] = await sql`insert into jobs ${sql(row)} returning id`
   } catch (e: any) {
-    // Duplicate URL — silently skip
+    // Duplicate (url or source+external_id) — silently skip
     if (e?.code === '23505') {
       return { ok: true, skipped: true, telegram_notify: false }
     }

@@ -47,7 +47,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.item.json;\nconst salary = item.salary;\nlet salaryMin = null;\nlet salaryMax = null;\nif (salary) {\n  salaryMin = salary.from || null;\n  salaryMax = salary.to || null;\n  // Convert RUB to USD roughly if needed\n  if (salary.currency === 'RUR') {\n    if (salaryMin) salaryMin = Math.round(salaryMin / 90);\n    if (salaryMax) salaryMax = Math.round(salaryMax / 90);\n  }\n}\n\nreturn {\n  title: item.name,\n  company: item.employer?.name || 'Unknown',\n  url: item.alternate_url,\n  location: item.area?.name || null,\n  remote: true,\n  status: 'new',\n  fit_score: null,\n  salary_min: salaryMin,\n  salary_max: salaryMax,\n  notes: `Source: HH.ru | ID: ${item.id}`\n};"
+        "jsCode": "const item = $input.item.json;\nconst salary = item.salary;\nlet salaryMin = null;\nlet salaryMax = null;\nif (salary) {\n  salaryMin = salary.from || null;\n  salaryMax = salary.to || null;\n  // Convert RUB to USD roughly if needed\n  if (salary.currency === 'RUR') {\n    if (salaryMin) salaryMin = Math.round(salaryMin / 90);\n    if (salaryMax) salaryMax = Math.round(salaryMax / 90);\n  }\n}\n\nreturn {\n  title: item.name,\n  company: item.employer?.name || 'Unknown',\n  url: item.alternate_url,\n  location: item.area?.name || null,\n  remote: true,\n  status: 'new',\n  fit_score: null,\n  salary_min: salaryMin,\n  salary_max: salaryMax,\n  source: 'hh',\n  external_id: String(item.id),\n  notes: `Source: HH.ru | ID: ${item.id}`\n};"
       },
       "id": "map-hh",
       "name": "Map to AutoHQ format",

@@ -45,7 +45,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.item.json;\n\nreturn {\n  title: item.title,\n  company: item.company_name,\n  url: item.url,\n  location: item.candidate_required_location || 'Worldwide',\n  remote: true,\n  status: 'new',\n  fit_score: null,\n  salary_min: null,\n  salary_max: null,\n  notes: `Source: Remotive | Tags: ${(item.tags || []).join(', ')}`\n};"
+        "jsCode": "const item = $input.item.json;\n\nreturn {\n  title: item.title,\n  company: item.company_name,\n  url: item.url,\n  location: item.candidate_required_location || 'Worldwide',\n  remote: true,\n  status: 'new',\n  fit_score: null,\n  salary_min: null,\n  salary_max: null,\n  source: 'remotive',\n  external_id: String(item.id),\n  notes: `Source: Remotive | Tags: ${(item.tags || []).join(', ')}`\n};"
       },
       "id": "map-rem",
       "name": "Map to AutoHQ format",

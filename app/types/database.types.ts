@@ -23,6 +23,7 @@ export interface Database {
           location: string | null
           remote: boolean
           source: string | null
+          external_id: string | null
           notes: string | null
           applied_at: string | null
           created_at: string
@@ -41,6 +42,7 @@ export interface Database {
           location?: string | null
           remote?: boolean
           source?: string | null
+          external_id?: string | null
           notes?: string | null
           applied_at?: string | null
         }
