@@ -237,19 +237,26 @@ The repo is Vercel-ready ([`vercel.json`](vercel.json)):
 
 The [`n8n/`](n8n/) folder contains starter workflow exports and helper scripts.
 
-1. **Import the base workflows** — either *Import from File* in the n8n UI
-   ([`n8n/workflow-remotive.json`](n8n/workflow-remotive.json), [`n8n/workflow-hh.json`](n8n/workflow-hh.json)),
-   or push them all at once via the Public API:
+1. **Push the workflows via the Public API** (recommended) — the JSON files are
+   templates: they carry `{{APP_URL}}` and `{{WEBHOOK_SECRET}}` placeholders that
+   `n8n:sync` renders from your `.env` at push time, so each workflow already points
+   at your app with the right webhook secret — no manual node editing.
    ```bash
-   # set N8N_API_URL + N8N_API_KEY (Settings → n8n API) in .env first
+   # set N8N_API_URL + N8N_API_KEY (Settings → n8n API), plus
+   # NUXT_PUBLIC_APP_URL + WEBHOOK_SECRET in .env first
    npm run n8n:sync            # create/update by name
    npm run n8n:sync -- --activate
    ```
-   `n8n:sync` ([`n8n/sync.cjs`](n8n/sync.cjs)) matches workflows by name, so it's safe to re-run.
-   Credentials aren't part of the JSON — configure them once in n8n (next steps). Each workflow
-   fetches postings, maps them to the AutoHQ format, and POSTs to your webhook.
-2. **Point it at your app** — set the HTTP Request node URL to your `/api/webhook/jobs` and add the
-   header `x-webhook-secret: <WEBHOOK_SECRET>`.
+   `n8n:sync` ([`n8n/sync.cjs`](n8n/sync.cjs)) matches workflows by name (safe to re-run) and
+   fails loudly if a placeholder has no env value, rather than pushing a broken workflow.
+   Each workflow fetches postings, maps them to the AutoHQ format, and POSTs to your webhook.
+
+   *(Alternatively, import [`n8n/workflow-remotive.json`](n8n/workflow-remotive.json) /
+   [`n8n/workflow-hh.json`](n8n/workflow-hh.json) via the UI's *Import from File* — but then
+   you must fill the `{{APP_URL}}` / `{{WEBHOOK_SECRET}}` placeholders in the nodes by hand.)*
+2. **Live settings are already wired** — keywords are read at runtime from `GET /api/config`
+   via a *Get Config* node (see [`n8n/wire-all.cjs`](n8n/wire-all.cjs)), so you change them on the
+   *Control* page, not in n8n.
 3. **Add the AI layer** — in the n8n editor, drop in an OpenAI (HTTP Request / OpenAI node) step after
    the mapping node that returns a `fit_score` and a `cover_letter`, then a Telegram node for jobs above
    your threshold. Store your OpenAI key as an n8n credential — never inline it. You can iterate on the

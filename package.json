@@ -8,7 +8,8 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "db:migrate": "node --env-file-if-exists=.env scripts/migrate.mjs"
+    "db:migrate": "node --env-file-if-exists=.env scripts/migrate.mjs",
+    "n8n:sync": "node --env-file-if-exists=.env n8n/sync.cjs"
   },
   "dependencies": {
     "@iconify-json/lucide": "^1.2.111",

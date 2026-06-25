@@ -58,11 +58,11 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://credorevolution.space/api/webhook/jobs",
+        "url": "{{APP_URL}}/api/webhook/jobs",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "x-webhook-secret", "value": "__SET_YOUR_WEBHOOK_SECRET__" },
+            { "name": "x-webhook-secret", "value": "{{WEBHOOK_SECRET}}" },
             { "name": "Content-Type", "value": "application/json" }
           ]
         },
