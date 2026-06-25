@@ -35,7 +35,7 @@
             { "name": "per_page", "value": "100" },
             { "name": "order_by", "value": "publication_time" },
             { "name": "currency", "value": "USD" },
-            { "name": "date_from", "value": "={{ $now.minus({ days: 3 }).toFormat(\"yyyy-MM-dd'T'HH:mm:ssZZZ\") }}" }
+            { "name": "date_from", "value": "={{ $json.job_lookback_days > 0 ? $now.minus({ days: $json.job_lookback_days }).toFormat('yyyy-MM-dd') : '2000-01-01' }}" }
           ]
         },
         "sendHeaders": true,

@@ -9,6 +9,10 @@ export default defineEventHandler(async (event) => {
     const n = Number(body.telegram_min_score)
     if (Number.isFinite(n)) updates.telegram_min_score = Math.min(100, Math.max(0, Math.round(n)))
   }
+  if (body?.job_lookback_days != null) {
+    const n = Number(body.job_lookback_days)
+    if (Number.isFinite(n)) updates.job_lookback_days = Math.max(0, Math.round(n))
+  }
 
   if (Object.keys(updates).length === 0) {
     throw createError({ status: 400, message: 'No valid fields to update' })

@@ -5,8 +5,8 @@ definePageMeta({ layout: 'default' })
 useHead({ title: 'Control' })
 
 // ── Live config (keywords + telegram threshold) ──
-interface AppConfig { keywords: string; telegram_min_score: number }
-const config = reactive<AppConfig>({ keywords: '', telegram_min_score: 70 })
+interface AppConfig { keywords: string; telegram_min_score: number; job_lookback_days: number }
+const config = reactive<AppConfig>({ keywords: '', telegram_min_score: 70, job_lookback_days: 3 })
 const cfgLoading = ref(true)
 const cfgSaving = ref(false)
 const cfgSaved = ref(false)
@@ -17,6 +17,7 @@ async function loadConfig() {
     const data = await $fetch<AppConfig>('/api/config')
     config.keywords = data.keywords
     config.telegram_min_score = data.telegram_min_score
+    config.job_lookback_days = data.job_lookback_days
   } finally {
     cfgLoading.value = false
   }
@@ -28,7 +29,11 @@ async function saveConfig() {
   try {
     await $fetch('/api/config', {
       method: 'PATCH',
-      body: { keywords: config.keywords, telegram_min_score: config.telegram_min_score },
+      body: {
+        keywords: config.keywords,
+        telegram_min_score: config.telegram_min_score,
+        job_lookback_days: config.job_lookback_days,
+      },
     })
     cfgSaved.value = true
     setTimeout(() => { cfgSaved.value = false }, 2000)
@@ -177,6 +182,20 @@ onMounted(() => { loadConfig(); loadSources(); loadLastImport() })
             class="w-full accent-primary"
           />
           <p class="text-xs text-muted-foreground">В Telegram приходят только вакансии со score ≥ {{ config.telegram_min_score }}. Применяется сразу.</p>
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium">Период поиска (дней назад)</label>
+          <input
+            v-model.number="config.job_lookback_days"
+            type="number" min="0" step="1"
+            placeholder="3"
+            class="w-full rounded-md border bg-background px-3 py-2 text-sm tabular-nums placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          />
+          <p class="text-xs text-muted-foreground">
+            Насколько глубоко по дате публикации искать (поле <code class="bg-muted px-1 rounded">date_from</code> у HH.ru).
+            <code class="bg-muted px-1 rounded">0</code> — за всё время (ограничено лимитом источника, у HH.ru это 2000 вакансий).
+          </p>
         </div>
 
         <div class="flex items-center gap-3">
