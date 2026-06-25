@@ -15,11 +15,22 @@
     },
     {
       "parameters": {
+        "url": "{{APP_URL}}/api/config",
+        "options": { "response": { "response": { "responseFormat": "json" } } }
+      },
+      "id": "get-config-hh",
+      "name": "Get Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [360, 160],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
         "url": "https://api.hh.ru/vacancies",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "text", "value": "Vue developer OR Nuxt developer OR Frontend developer" },
+            { "name": "text", "value": "={{ $json.keywords.trim().split(/\\s+/).join(' OR ') }}" },
             { "name": "schedule", "value": "remote" },
             { "name": "per_page", "value": "100" },
             { "name": "order_by", "value": "publication_time" },
@@ -103,6 +114,9 @@
   ],
   "connections": {
     "Every weekday 8:00": {
+      "main": [[{ "node": "Get Config", "type": "main", "index": 0 }]]
+    },
+    "Get Config": {
       "main": [[{ "node": "Fetch HH.ru", "type": "main", "index": 0 }]]
     },
     "Fetch HH.ru": {
