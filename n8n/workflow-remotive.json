@@ -21,7 +21,7 @@
           "parameters": [
             { "name": "category", "value": "software-dev" },
             { "name": "search", "value": "vue OR nuxt OR frontend" },
-            { "name": "limit", "value": "20" }
+            { "name": "limit", "value": "100" }
           ]
         },
         "options": {}
