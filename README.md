@@ -254,13 +254,15 @@ The [`n8n/`](n8n/) folder contains starter workflow exports and helper scripts.
    *(Alternatively, import [`n8n/workflow-remotive.json`](n8n/workflow-remotive.json) /
    [`n8n/workflow-hh.json`](n8n/workflow-hh.json) via the UI's *Import from File* — but then
    you must fill the `{{APP_URL}}` / `{{WEBHOOK_SECRET}}` placeholders in the nodes by hand.)*
-2. **Live settings are already wired** — keywords are read at runtime from `GET /api/config`
-   via a *Get Config* node (see [`n8n/wire-all.cjs`](n8n/wire-all.cjs)), so you change them on the
-   *Control* page, not in n8n.
-3. **Add the AI layer** — in the n8n editor, drop in an OpenAI (HTTP Request / OpenAI node) step after
-   the mapping node that returns a `fit_score` and a `cover_letter`, then a Telegram node for jobs above
-   your threshold. Store your OpenAI key as an n8n credential — never inline it. You can iterate on the
-   cover-letter prompt locally with [`n8n/test-cover.cjs`](n8n/test-cover.cjs) (`OPENAI_KEY=sk-... node n8n/test-cover.cjs en`).
+2. **Live settings are already wired** — keywords, the search period, and (for HH) a fresh OAuth
+   token are read at runtime from the app via a *Get Config* node baked into each workflow, so you
+   change them on the *Control* page, not in n8n.
+3. **AI cover letters are already wired** — each workflow fetches the live resume (`GET /api/resume`),
+   builds a language-aware prompt from the job description, and calls OpenAI (*OpenAI Cover Letter* node)
+   before posting the result with a `cover_letter`. You only need to attach the credential: create an
+   **Header Auth** credential with header `Authorization` = `Bearer sk-…` and select it on the
+   *OpenAI Cover Letter* node (never inline the key). Optional next step: add an *OpenAI Score* node that
+   returns a `fit_score`, and a Telegram node gated on the webhook's `telegram_notify` response.
 4. **Activate** the workflows. They'll run on their cron schedule and your dashboard fills up.
 
 The webhook respects your **live settings**: a posting is skipped if its source is disabled in the

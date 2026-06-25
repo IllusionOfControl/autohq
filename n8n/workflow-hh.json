@@ -4,13 +4,21 @@
     {
       "parameters": {
         "rule": {
-          "interval": [{ "field": "cronExpression", "expression": "0 8 * * 1-5" }]
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1-5"
+            }
+          ]
         }
       },
       "id": "cron-hh",
       "name": "Every weekday 8:00",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "position": [240, 300],
+      "position": [
+        240,
+        300
+      ],
       "typeVersion": 1.2
     },
     {
@@ -19,15 +27,27 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "x-webhook-secret", "value": "{{WEBHOOK_SECRET}}" }
+            {
+              "name": "x-webhook-secret",
+              "value": "{{WEBHOOK_SECRET}}"
+            }
           ]
         },
-        "options": { "response": { "response": { "responseFormat": "json" } } }
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
       },
       "id": "get-config-hh",
       "name": "Get Config",
       "type": "n8n-nodes-base.httpRequest",
-      "position": [360, 160],
+      "position": [
+        600,
+        300
+      ],
       "typeVersion": 4.2
     },
     {
@@ -36,28 +56,60 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "text", "value": "={{ $json.keywords.trim().split(/\\s+/).join(' OR ') }}" },
-            { "name": "schedule", "value": "remote" },
-            { "name": "per_page", "value": "100" },
-            { "name": "order_by", "value": "publication_time" },
-            { "name": "currency", "value": "USD" },
-            { "name": "date_from", "value": "={{ $json.job_lookback_days > 0 ? $now.minus({ days: $json.job_lookback_days }).toFormat('yyyy-MM-dd') : '2000-01-01' }}" }
+            {
+              "name": "text",
+              "value": "={{ $json.keywords.trim().split(/\\s+/).join(' OR ') }}"
+            },
+            {
+              "name": "schedule",
+              "value": "remote"
+            },
+            {
+              "name": "per_page",
+              "value": "100"
+            },
+            {
+              "name": "order_by",
+              "value": "publication_time"
+            },
+            {
+              "name": "currency",
+              "value": "USD"
+            },
+            {
+              "name": "date_from",
+              "value": "={{ $json.job_lookback_days > 0 ? $now.minus({ days: $json.job_lookback_days }).toFormat('yyyy-MM-dd') : '2000-01-01' }}"
+            }
           ]
         },
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "User-Agent", "value": "AutoHQ-JobBot/1.0 (autohq)" },
-            { "name": "Authorization", "value": "={{ $json.hh_access_token ? ('Bearer ' + $json.hh_access_token) : undefined }}" }
+            {
+              "name": "User-Agent",
+              "value": "AutoHQ-JobBot/1.0 (autohq)"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ $json.hh_access_token ? ('Bearer ' + $json.hh_access_token) : undefined }}"
+            }
           ]
         },
         "options": {
-          "response": { "response": { "responseFormat": "json" } },
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
           "pagination": {
             "pagination": {
               "parameters": {
                 "parameters": [
-                  { "type": "qs", "name": "page", "value": "={{ $pageCount }}" }
+                  {
+                    "type": "qs",
+                    "name": "page",
+                    "value": "={{ $pageCount }}"
+                  }
                 ]
               },
               "paginationCompleteWhen": "other",
@@ -72,7 +124,10 @@
       "id": "http-hh",
       "name": "Fetch HH.ru",
       "type": "n8n-nodes-base.httpRequest",
-      "position": [460, 300],
+      "position": [
+        780,
+        300
+      ],
       "typeVersion": 4.2
     },
     {
@@ -83,17 +138,24 @@
       "id": "split-hh",
       "name": "Split Items",
       "type": "n8n-nodes-base.splitOut",
-      "position": [680, 300],
+      "position": [
+        960,
+        300
+      ],
       "typeVersion": 1
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.item.json;\nconst salary = item.salary;\nlet salaryMin = null;\nlet salaryMax = null;\nif (salary) {\n  salaryMin = salary.from || null;\n  salaryMax = salary.to || null;\n  // Convert RUB to USD roughly if needed\n  if (salary.currency === 'RUR') {\n    if (salaryMin) salaryMin = Math.round(salaryMin / 90);\n    if (salaryMax) salaryMax = Math.round(salaryMax / 90);\n  }\n}\n\nreturn {\n  title: item.name,\n  company: item.employer?.name || 'Unknown',\n  url: item.alternate_url,\n  location: item.area?.name || null,\n  remote: true,\n  status: 'new',\n  fit_score: null,\n  salary_min: salaryMin,\n  salary_max: salaryMax,\n  source: 'hh',\n  external_id: String(item.id),\n  notes: `Source: HH.ru | ID: ${item.id}`\n};"
+        "jsCode": "const item = $input.item.json;\nconst salary = item.salary;\nlet salaryMin = null;\nlet salaryMax = null;\nif (salary) {\n  salaryMin = salary.from || null;\n  salaryMax = salary.to || null;\n  // Convert RUB to USD roughly if needed\n  if (salary.currency === 'RUR') {\n    if (salaryMin) salaryMin = Math.round(salaryMin / 90);\n    if (salaryMax) salaryMax = Math.round(salaryMax / 90);\n  }\n}\n\n// HH list endpoint has no full description — use the snippet (tags stripped).\nconst description = [item.snippet?.requirement, item.snippet?.responsibility]\n  .filter(Boolean).join(' ')\n  .replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 1500);\n\nreturn {\n  title: item.name,\n  company: item.employer?.name || 'Unknown',\n  url: item.alternate_url,\n  location: item.area?.name || null,\n  remote: true,\n  status: 'new',\n  fit_score: null,\n  salary_min: salaryMin,\n  salary_max: salaryMax,\n  source: 'hh',\n  external_id: String(item.id),\n  description,\n  notes: `Source: HH.ru | ID: ${item.id}`\n};",
+        "mode": "runOnceForEachItem"
       },
       "id": "map-hh",
       "name": "Map to AutoHQ format",
       "type": "n8n-nodes-base.code",
-      "position": [900, 300],
+      "position": [
+        1140,
+        300
+      ],
       "typeVersion": 2
     },
     {
@@ -103,39 +165,187 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "x-webhook-secret", "value": "{{WEBHOOK_SECRET}}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "x-webhook-secret",
+              "value": "{{WEBHOOK_SECRET}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ $json }}",
-        "options": { "ignore404": false }
+        "options": {
+          "ignore404": false
+        }
       },
       "id": "post-hh",
       "name": "Send to AutoHQ",
       "type": "n8n-nodes-base.httpRequest",
-      "position": [1120, 300],
+      "position": [
+        1680,
+        300
+      ],
       "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "url": "{{APP_URL}}/api/resume?lang=both",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "get-resume",
+      "name": "Get Resume",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'You are writing a tailored cover letter on behalf of the candidate. Write the ENTIRE letter in ' + (/[\\u0400-\\u04FF]/.test(($('Map to AutoHQ format').item.json.title || '') + ($('Map to AutoHQ format').item.json.description || '')) ? 'Russian' : 'English') + ' only. Do not use any other language.\\n\\n=== CANDIDATE RESUME ===\\n' + (/[\\u0400-\\u04FF]/.test(($('Map to AutoHQ format').item.json.title || '') + ($('Map to AutoHQ format').item.json.description || '')) ? ($('Get Resume').item.json.ru || '') : ($('Get Resume').item.json.en || '')) + '\\n\\n=== JOB ===\\nTitle: ' + ($('Map to AutoHQ format').item.json.title || '') + '\\nCompany: ' + ($('Map to AutoHQ format').item.json.company || '') + '\\nDescription: ' + ($('Map to AutoHQ format').item.json.description || '') + '\\n\\n=== RULES ===\\n- 3 to 4 short paragraphs. No header, no date, no salutation line. Start directly with the first content paragraph.\\n- Connect 2 to 3 concrete things from the resume to specific requirements in the job description.\\n- Professional but human tone. Avoid cliches such as excited to apply, passionate developer, or I am writing to.\\n- If the description is empty, write a strong letter based on the resume and the job title.\\n- End with one clear call to action. Output ONLY the letter text, nothing else.' }] }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "openai-cover",
+      "name": "OpenAI Cover Letter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const job = $('Map to AutoHQ format').item.json;\nlet cover_letter = '';\ntry {\n  cover_letter = (($('OpenAI Cover Letter').item.json.choices?.[0]?.message?.content) || '').trim();\n} catch (e) { /* leave empty on any parse issue */ }\nreturn { ...job, cover_letter };"
+      },
+      "id": "assemble",
+      "name": "Assemble",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ]
     }
   ],
   "connections": {
     "Every weekday 8:00": {
-      "main": [[{ "node": "Get Config", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Get Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Resume": {
+      "main": [
+        [
+          {
+            "node": "Get Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Get Config": {
-      "main": [[{ "node": "Fetch HH.ru", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Fetch HH.ru",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Fetch HH.ru": {
-      "main": [[{ "node": "Split Items", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Split Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Split Items": {
-      "main": [[{ "node": "Map to AutoHQ format", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Map to AutoHQ format",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Map to AutoHQ format": {
-      "main": [[{ "node": "Send to AutoHQ", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "OpenAI Cover Letter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Cover Letter": {
+      "main": [
+        [
+          {
+            "node": "Assemble",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assemble": {
+      "main": [
+        [
+          {
+            "node": "Send to AutoHQ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "settings": { "executionOrder": "v1" },
-  "tags": ["autohq"]
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    "autohq"
+  ]
 }

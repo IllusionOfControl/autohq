@@ -4,13 +4,21 @@
     {
       "parameters": {
         "rule": {
-          "interval": [{ "field": "cronExpression", "expression": "0 9 * * 1-5" }]
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1-5"
+            }
+          ]
         }
       },
       "id": "cron-rem",
       "name": "Every weekday 9:00",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "position": [240, 300],
+      "position": [
+        240,
+        300
+      ],
       "typeVersion": 1.2
     },
     {
@@ -19,9 +27,18 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "category", "value": "software-dev" },
-            { "name": "search", "value": "vue OR nuxt OR frontend" },
-            { "name": "limit", "value": "100" }
+            {
+              "name": "category",
+              "value": "software-dev"
+            },
+            {
+              "name": "search",
+              "value": "vue OR nuxt OR frontend"
+            },
+            {
+              "name": "limit",
+              "value": "100"
+            }
           ]
         },
         "options": {}
@@ -29,7 +46,10 @@
       "id": "http-remotive",
       "name": "Fetch Remotive",
       "type": "n8n-nodes-base.httpRequest",
-      "position": [460, 300],
+      "position": [
+        640,
+        300
+      ],
       "typeVersion": 4.2
     },
     {
@@ -40,17 +60,24 @@
       "id": "split-rem",
       "name": "Split Jobs",
       "type": "n8n-nodes-base.splitOut",
-      "position": [680, 300],
+      "position": [
+        840,
+        300
+      ],
       "typeVersion": 1
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.item.json;\n\nreturn {\n  title: item.title,\n  company: item.company_name,\n  url: item.url,\n  location: item.candidate_required_location || 'Worldwide',\n  remote: true,\n  status: 'new',\n  fit_score: null,\n  salary_min: null,\n  salary_max: null,\n  source: 'remotive',\n  external_id: String(item.id),\n  notes: `Source: Remotive | Tags: ${(item.tags || []).join(', ')}`\n};"
+        "jsCode": "const item = $input.item.json;\n\nreturn {\n  title: item.title,\n  company: item.company_name,\n  url: item.url,\n  location: item.candidate_required_location || 'Worldwide',\n  remote: true,\n  status: 'new',\n  fit_score: null,\n  salary_min: null,\n  salary_max: null,\n  source: 'remotive',\n  external_id: String(item.id),\n  description: ((item.description || '') + '').replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 1500),\n  notes: `Source: Remotive | Tags: ${(item.tags || []).join(', ')}`\n};",
+        "mode": "runOnceForEachItem"
       },
       "id": "map-rem",
       "name": "Map to AutoHQ format",
       "type": "n8n-nodes-base.code",
-      "position": [900, 300],
+      "position": [
+        1040,
+        300
+      ],
       "typeVersion": 2
     },
     {
@@ -60,8 +87,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "x-webhook-secret", "value": "{{WEBHOOK_SECRET}}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "x-webhook-secret",
+              "value": "{{WEBHOOK_SECRET}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -72,24 +105,156 @@
       "id": "post-rem",
       "name": "Send to AutoHQ",
       "type": "n8n-nodes-base.httpRequest",
-      "position": [1120, 300],
+      "position": [
+        1640,
+        300
+      ],
       "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "url": "{{APP_URL}}/api/resume?lang=both",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "get-resume",
+      "name": "Get Resume",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'You are writing a tailored cover letter on behalf of the candidate. Write the ENTIRE letter in ' + (/[\\u0400-\\u04FF]/.test(($('Map to AutoHQ format').item.json.title || '') + ($('Map to AutoHQ format').item.json.description || '')) ? 'Russian' : 'English') + ' only. Do not use any other language.\\n\\n=== CANDIDATE RESUME ===\\n' + (/[\\u0400-\\u04FF]/.test(($('Map to AutoHQ format').item.json.title || '') + ($('Map to AutoHQ format').item.json.description || '')) ? ($('Get Resume').item.json.ru || '') : ($('Get Resume').item.json.en || '')) + '\\n\\n=== JOB ===\\nTitle: ' + ($('Map to AutoHQ format').item.json.title || '') + '\\nCompany: ' + ($('Map to AutoHQ format').item.json.company || '') + '\\nDescription: ' + ($('Map to AutoHQ format').item.json.description || '') + '\\n\\n=== RULES ===\\n- 3 to 4 short paragraphs. No header, no date, no salutation line. Start directly with the first content paragraph.\\n- Connect 2 to 3 concrete things from the resume to specific requirements in the job description.\\n- Professional but human tone. Avoid cliches such as excited to apply, passionate developer, or I am writing to.\\n- If the description is empty, write a strong letter based on the resume and the job title.\\n- End with one clear call to action. Output ONLY the letter text, nothing else.' }] }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "openai-cover",
+      "name": "OpenAI Cover Letter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const job = $('Map to AutoHQ format').item.json;\nlet cover_letter = '';\ntry {\n  cover_letter = (($('OpenAI Cover Letter').item.json.choices?.[0]?.message?.content) || '').trim();\n} catch (e) { /* leave empty on any parse issue */ }\nreturn { ...job, cover_letter };"
+      },
+      "id": "assemble",
+      "name": "Assemble",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        300
+      ]
     }
   ],
   "connections": {
     "Every weekday 9:00": {
-      "main": [[{ "node": "Fetch Remotive", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Get Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Resume": {
+      "main": [
+        [
+          {
+            "node": "Fetch Remotive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Fetch Remotive": {
-      "main": [[{ "node": "Split Jobs", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Split Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Split Jobs": {
-      "main": [[{ "node": "Map to AutoHQ format", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Map to AutoHQ format",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Map to AutoHQ format": {
-      "main": [[{ "node": "Send to AutoHQ", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "OpenAI Cover Letter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Cover Letter": {
+      "main": [
+        [
+          {
+            "node": "Assemble",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assemble": {
+      "main": [
+        [
+          {
+            "node": "Send to AutoHQ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "settings": { "executionOrder": "v1" },
-  "tags": ["autohq"]
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    "autohq"
+  ]
 }
