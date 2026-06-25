@@ -15,7 +15,13 @@
     },
     {
       "parameters": {
-        "url": "{{APP_URL}}/api/config",
+        "url": "{{APP_URL}}/api/n8n/hh",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-webhook-secret", "value": "{{WEBHOOK_SECRET}}" }
+          ]
+        },
         "options": { "response": { "response": { "responseFormat": "json" } } }
       },
       "id": "get-config-hh",
@@ -41,7 +47,8 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "User-Agent", "value": "AutoHQ-JobBot/1.0 (autohq)" }
+            { "name": "User-Agent", "value": "AutoHQ-JobBot/1.0 (autohq)" },
+            { "name": "Authorization", "value": "={{ $json.hh_access_token ? ('Bearer ' + $json.hh_access_token) : undefined }}" }
           ]
         },
         "options": {

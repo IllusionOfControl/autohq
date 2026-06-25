@@ -102,6 +102,63 @@ async function toggle(src: SourceSetting, field: 'site_enabled' | 'telegram_enab
   }
 }
 
+// ── HH.ru OAuth ──
+interface HhStatus {
+  configured: boolean
+  connected: boolean
+  connected_at: string | null
+  expires_at: string | null
+}
+const hh = reactive<HhStatus>({ configured: false, connected: false, connected_at: null, expires_at: null })
+const hhLoading = ref(true)
+const hhCode = ref('')
+const hhBusy = ref(false)
+const hhError = ref('')
+
+async function loadHhStatus() {
+  hhLoading.value = true
+  try {
+    Object.assign(hh, await $fetch<HhStatus>('/api/providers/hh/status'))
+  } finally {
+    hhLoading.value = false
+  }
+}
+async function startHhAuth() {
+  hhError.value = ''
+  try {
+    const { url } = await $fetch<{ url: string }>('/api/providers/hh/authorize-url')
+    window.open(url, '_blank', 'noopener')
+  } catch (e: any) {
+    hhError.value = e?.data?.message ?? 'Не удалось получить ссылку авторизации'
+  }
+}
+async function submitHhCode() {
+  if (!hhCode.value.trim()) return
+  hhBusy.value = true
+  hhError.value = ''
+  try {
+    await $fetch('/api/providers/hh/exchange', { method: 'POST', body: { code: hhCode.value.trim() } })
+    hhCode.value = ''
+    await loadHhStatus()
+  } catch (e: any) {
+    hhError.value = e?.data?.message ?? 'Не удалось обменять код'
+  } finally {
+    hhBusy.value = false
+  }
+}
+async function disconnectHh() {
+  hhBusy.value = true
+  hhError.value = ''
+  try {
+    await $fetch('/api/providers/hh', { method: 'DELETE' })
+    await loadHhStatus()
+  } catch (e: any) {
+    hhError.value = e?.data?.message ?? 'Не удалось отключить'
+  } finally {
+    hhBusy.value = false
+  }
+}
+
 const runtimeConfig = useRuntimeConfig()
 
 // Интеграции из env (NUXT_PUBLIC_N8N_URL / NUXT_PUBLIC_TELEGRAM_BOT).
@@ -136,7 +193,16 @@ function copy(text: string, tag: string) {
   setTimeout(() => { copied.value = '' }, 1500)
 }
 
-onMounted(() => { loadConfig(); loadSources(); loadLastImport() })
+function hhRelExpiry(iso?: string | null) {
+  if (!iso) return '—'
+  const diff = new Date(iso).getTime() - Date.now()
+  if (diff <= 0) return 'истёк'
+  const d = Math.floor(diff / 8.64e7)
+  if (d >= 1) return `через ${d} дн`
+  return `через ${Math.max(1, Math.floor(diff / 3.6e6))} ч`
+}
+
+onMounted(() => { loadConfig(); loadSources(); loadLastImport(); loadHhStatus() })
 </script>
 
 <template>
@@ -252,6 +318,70 @@ onMounted(() => { loadConfig(); loadSources(); loadLastImport() })
             </button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Provider authorization (OAuth) -->
+    <div class="space-y-3">
+      <p class="text-sm font-medium flex items-center gap-2">
+        <Icon name="lucide:key-round" class="size-4 text-muted-foreground" /> Авторизация провайдеров
+      </p>
+
+      <div v-if="hhLoading" class="h-24 surface bg-muted/20 animate-pulse" />
+      <div v-else class="surface p-4 space-y-3">
+        <div class="flex items-center gap-3">
+          <Icon name="lucide:building-2" class="size-5 shrink-0 text-rose-400" />
+          <div class="flex-1 min-w-0">
+            <p class="font-medium text-sm">HH.ru</p>
+            <p class="text-xs text-muted-foreground">
+              <template v-if="!hh.configured">Не настроено: задай HH_CLIENT_ID / HH_CLIENT_SECRET в .env</template>
+              <template v-else-if="hh.connected">Подключено · токен {{ hhRelExpiry(hh.expires_at) }}</template>
+              <template v-else>OAuth-доступ к HH API (Bearer-токен в воркфлоу)</template>
+            </p>
+          </div>
+          <span
+            :class="['inline-flex items-center gap-1 text-[11px] shrink-0',
+              hh.connected ? 'text-emerald-400' : 'text-muted-foreground']"
+          >
+            <span :class="['size-1.5 rounded-full', hh.connected ? 'bg-emerald-400' : 'bg-muted-foreground/50']" />
+            {{ hh.connected ? 'connected' : 'not connected' }}
+          </span>
+        </div>
+
+        <template v-if="hh.configured">
+          <div v-if="!hh.connected" class="space-y-2">
+            <Button variant="outline" size="sm" @click="startHhAuth">
+              <Icon name="lucide:external-link" class="size-4 mr-1.5" /> 1. Открыть авторизацию HH
+            </Button>
+            <p class="text-xs text-muted-foreground">
+              После входа HH редиректит на <code class="bg-muted px-1 rounded">hhandroid://oauthresponse?token=…</code> —
+              скопируй значение <code class="bg-muted px-1 rounded">token</code> из адресной строки и вставь ниже.
+            </p>
+            <div class="flex gap-2">
+              <input
+                v-model="hhCode"
+                placeholder="2. Вставь code сюда"
+                class="flex-1 rounded-md border bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              />
+              <Button :disabled="hhBusy || !hhCode.trim()" @click="submitHhCode">
+                <Icon v-if="hhBusy" name="lucide:loader-circle" class="size-4 mr-1.5 animate-spin" />
+                <Icon v-else name="lucide:check" class="size-4 mr-1.5" />
+                Подключить
+              </Button>
+            </div>
+          </div>
+
+          <div v-else class="flex items-center gap-3">
+            <Button variant="outline" size="sm" :disabled="hhBusy" @click="disconnectHh">
+              <Icon name="lucide:unplug" class="size-4 mr-1.5" /> Отключить
+            </Button>
+            <Button variant="ghost" size="sm" @click="startHhAuth">
+              <Icon name="lucide:refresh-cw" class="size-4 mr-1.5" /> Переавторизовать
+            </Button>
+          </div>
+        </template>
+
+        <p v-if="hhError" class="text-sm text-destructive">{{ hhError }}</p>
       </div>
     </div>
 
