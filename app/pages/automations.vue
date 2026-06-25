@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { Button } from '~/components/ui/button'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '~/components/ui/dialog'
 
 definePageMeta({ layout: 'default' })
 useHead({ title: 'Control' })
@@ -56,8 +59,8 @@ const srcLoading = ref(true)
 const saving = ref<Record<string, boolean>>({})
 const lastImport = ref<Record<string, string>>({})
 
-const sourceMeta: Record<string, { icon: string; color: string; description: string }> = {
-  hh:        { icon: 'lucide:building-2', color: 'text-rose-400',    description: 'Россия и СНГ' },
+const sourceMeta: Record<string, { icon: string; color: string; description: string; auth?: boolean }> = {
+  hh:        { icon: 'lucide:building-2', color: 'text-rose-400',    description: 'Россия и СНГ', auth: true },
   remotive:  { icon: 'lucide:globe',      color: 'text-blue-400',    description: 'Международные remote' },
   arbeitnow: { icon: 'lucide:laptop',     color: 'text-emerald-400', description: 'Remote-first по тегам' },
   habr:      { icon: 'lucide:code',       color: 'text-sky-400',     description: 'Хабр Карьера' },
@@ -111,6 +114,7 @@ interface HhStatus {
 }
 const hh = reactive<HhStatus>({ configured: false, connected: false, connected_at: null, expires_at: null })
 const hhLoading = ref(true)
+const hhModalOpen = ref(false)
 const hhCode = ref('')
 const hhBusy = ref(false)
 const hhError = ref('')
@@ -122,6 +126,11 @@ async function loadHhStatus() {
   } finally {
     hhLoading.value = false
   }
+}
+function openHhModal() {
+  hhCode.value = ''
+  hhError.value = ''
+  hhModalOpen.value = true
 }
 async function startHhAuth() {
   hhError.value = ''
@@ -139,6 +148,7 @@ async function submitHhCode() {
   try {
     await $fetch('/api/providers/hh/exchange', { method: 'POST', body: { code: hhCode.value.trim() } })
     hhCode.value = ''
+    hhModalOpen.value = false
     await loadHhStatus()
   } catch (e: any) {
     hhError.value = e?.data?.message ?? 'Не удалось обменять код'
@@ -301,7 +311,7 @@ onMounted(() => { loadConfig(); loadSources(); loadLastImport(); loadHhStatus() 
             </div>
           </div>
 
-          <div class="flex flex-wrap gap-x-6 gap-y-2">
+          <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
             <button
               v-for="f in (['site_enabled','telegram_enabled'] as const)"
               :key="f"
@@ -316,74 +326,66 @@ onMounted(() => { loadConfig(); loadSources(); loadLastImport(); loadHhStatus() 
               </span>
               <span class="text-muted-foreground">{{ f === 'site_enabled' ? 'Список на сайте' : 'Telegram' }}</span>
             </button>
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- Provider authorization (OAuth) -->
-    <div class="space-y-3">
-      <p class="text-sm font-medium flex items-center gap-2">
-        <Icon name="lucide:key-round" class="size-4 text-muted-foreground" /> Авторизация провайдеров
-      </p>
-
-      <div v-if="hhLoading" class="h-24 surface bg-muted/20 animate-pulse" />
-      <div v-else class="surface p-4 space-y-3">
-        <div class="flex items-center gap-3">
-          <Icon name="lucide:building-2" class="size-5 shrink-0 text-rose-400" />
-          <div class="flex-1 min-w-0">
-            <p class="font-medium text-sm">HH.ru</p>
-            <p class="text-xs text-muted-foreground">
-              <template v-if="!hh.configured">Не настроено: задай HH_CLIENT_ID / HH_CLIENT_SECRET в .env</template>
-              <template v-else-if="hh.connected">Подключено · токен {{ hhRelExpiry(hh.expires_at) }}</template>
-              <template v-else>OAuth-доступ к HH API (Bearer-токен в воркфлоу)</template>
-            </p>
-          </div>
-          <span
-            :class="['inline-flex items-center gap-1 text-[11px] shrink-0',
-              hh.connected ? 'text-emerald-400' : 'text-muted-foreground']"
-          >
-            <span :class="['size-1.5 rounded-full', hh.connected ? 'bg-emerald-400' : 'bg-muted-foreground/50']" />
-            {{ hh.connected ? 'connected' : 'not connected' }}
-          </span>
-        </div>
-
-        <template v-if="hh.configured">
-          <div v-if="!hh.connected" class="space-y-2">
-            <Button variant="outline" size="sm" @click="startHhAuth">
-              <Icon name="lucide:external-link" class="size-4 mr-1.5" /> 1. Открыть авторизацию HH
-            </Button>
-            <p class="text-xs text-muted-foreground">
-              После входа HH редиректит на <code class="bg-muted px-1 rounded">hhandroid://oauthresponse?token=…</code> —
-              скопируй значение <code class="bg-muted px-1 rounded">token</code> из адресной строки и вставь ниже.
-            </p>
-            <div class="flex gap-2">
-              <input
-                v-model="hhCode"
-                placeholder="2. Вставь code сюда"
-                class="flex-1 rounded-md border bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              />
-              <Button :disabled="hhBusy || !hhCode.trim()" @click="submitHhCode">
-                <Icon v-if="hhBusy" name="lucide:loader-circle" class="size-4 mr-1.5 animate-spin" />
-                <Icon v-else name="lucide:check" class="size-4 mr-1.5" />
-                Подключить
+            <!-- OAuth connect / disconnect (sources that support it) -->
+            <div v-if="sourceMeta[src.source_id]?.auth && !hhLoading" class="ml-auto flex items-center gap-2">
+              <span v-if="hh.connected" class="inline-flex items-center gap-1 text-[11px] text-emerald-400">
+                <span class="size-1.5 rounded-full bg-emerald-400" /> токен {{ hhRelExpiry(hh.expires_at) }}
+              </span>
+              <Button
+                v-if="hh.connected"
+                variant="outline" size="sm" :disabled="hhBusy"
+                @click="disconnectHh"
+              >
+                <Icon name="lucide:unplug" class="size-3.5 mr-1.5" /> Отключить
+              </Button>
+              <Button
+                v-else
+                variant="outline" size="sm" :disabled="!hh.configured"
+                :title="hh.configured ? '' : 'Задай HH_CLIENT_ID / HH_CLIENT_SECRET в .env'"
+                @click="openHhModal"
+              >
+                <Icon name="lucide:plug" class="size-3.5 mr-1.5" /> Подключить
               </Button>
             </div>
           </div>
-
-          <div v-else class="flex items-center gap-3">
-            <Button variant="outline" size="sm" :disabled="hhBusy" @click="disconnectHh">
-              <Icon name="lucide:unplug" class="size-4 mr-1.5" /> Отключить
-            </Button>
-            <Button variant="ghost" size="sm" @click="startHhAuth">
-              <Icon name="lucide:refresh-cw" class="size-4 mr-1.5" /> Переавторизовать
-            </Button>
-          </div>
-        </template>
-
-        <p v-if="hhError" class="text-sm text-destructive">{{ hhError }}</p>
+        </div>
       </div>
     </div>
+
+    <!-- HH OAuth modal (opened by the source's "Подключить" button) -->
+    <Dialog v-model:open="hhModalOpen">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Подключить HH.ru</DialogTitle>
+          <DialogDescription>OAuth-доступ к HH API — Bearer-токен подставляется в воркфлоу.</DialogDescription>
+        </DialogHeader>
+        <div class="space-y-3">
+          <Button variant="outline" size="sm" @click="startHhAuth">
+            <Icon name="lucide:external-link" class="size-4 mr-1.5" /> 1. Открыть авторизацию HH
+          </Button>
+          <p class="text-xs text-muted-foreground">
+            После входа HH редиректит на <code class="bg-muted px-1 rounded">hhandroid://oauthresponse?token=…</code> —
+            скопируй значение <code class="bg-muted px-1 rounded">token</code> из адресной строки и вставь ниже.
+          </p>
+          <input
+            v-model="hhCode"
+            placeholder="2. Вставь code сюда"
+            class="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            @keydown.enter="submitHhCode"
+          />
+          <p v-if="hhError" class="text-sm text-destructive">{{ hhError }}</p>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" :disabled="hhBusy" @click="hhModalOpen = false">Отмена</Button>
+          <Button :disabled="hhBusy || !hhCode.trim()" @click="submitHhCode">
+            <Icon v-if="hhBusy" name="lucide:loader-circle" class="size-4 mr-1.5 animate-spin" />
+            <Icon v-else name="lucide:check" class="size-4 mr-1.5" />
+            Подключить
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- Connections -->
     <div class="surface p-5 space-y-3">
