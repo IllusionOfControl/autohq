@@ -6,6 +6,7 @@ export type JobStatus =
   | 'offer'
   | 'rejected'
   | 'archived'
+  | 'dismissed'
 
 interface StatusMeta {
   label: string
@@ -78,6 +79,14 @@ export const JOB_STATUS: Record<JobStatus, StatusMeta> = {
     chip: 'bg-zinc-500/15 border-zinc-500/60 text-zinc-300',
     accent: 'before:bg-zinc-500 text-zinc-400',
   },
+  dismissed: {
+    label: 'Won\'t apply',
+    icon: 'lucide:ban',
+    dot: 'bg-zinc-500',
+    badge: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/25',
+    chip: 'bg-zinc-500/15 border-zinc-500/60 text-zinc-300',
+    accent: 'before:bg-zinc-500 text-zinc-400',
+  },
 }
 
 /** Pipeline order (left → right), excludes archived. */
@@ -87,6 +96,7 @@ export const PIPELINE: JobStatus[] = [
   'applied',
   'interviewing',
   'offer',
+  'dismissed',
   'rejected',
 ]
 
@@ -97,6 +107,8 @@ export const BOARD_COLUMNS: JobStatus[] = [
   'applied',
   'interviewing',
   'offer',
+  'rejected',
+  'dismissed'
 ]
 
 /** Statuses that count as an "application". */
