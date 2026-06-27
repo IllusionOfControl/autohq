@@ -103,12 +103,12 @@ export const PIPELINE: JobStatus[] = [
 /** Columns shown on the kanban board. */
 export const BOARD_COLUMNS: JobStatus[] = [
   'new',
+  'dismissed',
   'reviewing',
   'applied',
   'interviewing',
   'offer',
   'rejected',
-  'dismissed'
 ]
 
 /** Statuses that count as an "application". */
