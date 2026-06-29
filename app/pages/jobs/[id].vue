@@ -45,6 +45,40 @@ async function copyCoverLetter() {
   setTimeout(() => { copied.value = false }, 2000)
 }
 
+// Inline edit for the generated cover letter.
+const editingCover = ref(false)
+const coverDraft = ref('')
+const coverSaving = ref(false)
+const coverError = ref('')
+
+function startEditCover() {
+  coverDraft.value = job.value?.cover_letter ?? ''
+  coverError.value = ''
+  editingCover.value = true
+}
+
+function cancelEditCover() {
+  editingCover.value = false
+  coverError.value = ''
+}
+
+async function saveCoverLetter() {
+  coverSaving.value = true
+  coverError.value = ''
+  try {
+    await $fetch(`/api/jobs/${route.params.id}`, {
+      method: 'PATCH',
+      body: { cover_letter: coverDraft.value.trim() || null },
+    })
+    await refresh()
+    editingCover.value = false
+  } catch (e: any) {
+    coverError.value = e?.data?.message ?? e?.message ?? 'Failed to save cover letter'
+  } finally {
+    coverSaving.value = false
+  }
+}
+
 async function quickSetStatus(newStatus: JobStatus) {
   if (newStatus === form.status || statusSaving.value) return
   statusSaving.value = true
@@ -141,15 +175,44 @@ async function deleteJob() {
     </div>
 
     <!-- Cover letter -->
-    <div v-if="job?.cover_letter" class="surface p-5 space-y-3">
-      <div class="flex items-center justify-between">
+    <div class="surface p-5 space-y-3">
+      <div class="flex items-center justify-between gap-2">
         <h2 class="text-sm font-semibold">Cover Letter</h2>
-        <Button variant="outline" size="sm" @click="copyCoverLetter">
-          <Icon :name="copied ? 'lucide:check' : 'lucide:copy'" class="size-4 mr-1" />
-          {{ copied ? 'Copied!' : 'Copy' }}
-        </Button>
+        <div class="flex gap-2">
+          <template v-if="!editingCover">
+            <Button v-if="job?.cover_letter" variant="outline" size="sm" @click="copyCoverLetter">
+              <Icon :name="copied ? 'lucide:check' : 'lucide:copy'" class="size-4 mr-1" />
+              {{ copied ? 'Copied!' : 'Copy' }}
+            </Button>
+            <Button variant="outline" size="sm" @click="startEditCover">
+              <Icon :name="job?.cover_letter ? 'lucide:pencil' : 'lucide:plus'" class="size-4 mr-1" />
+              {{ job?.cover_letter ? 'Edit' : 'Add' }}
+            </Button>
+          </template>
+          <template v-else>
+            <Button variant="ghost" size="sm" :disabled="coverSaving" @click="cancelEditCover">
+              Cancel
+            </Button>
+            <Button size="sm" :disabled="coverSaving" @click="saveCoverLetter">
+              <Icon v-if="coverSaving" name="lucide:loader-circle" class="size-4 mr-1 animate-spin" />
+              <Icon v-else name="lucide:save" class="size-4 mr-1" />
+              {{ coverSaving ? 'Saving…' : 'Save' }}
+            </Button>
+          </template>
+        </div>
       </div>
-      <pre class="whitespace-pre-wrap text-sm text-muted-foreground font-sans leading-relaxed">{{ job.cover_letter }}</pre>
+
+      <textarea
+        v-if="editingCover"
+        v-model="coverDraft"
+        rows="14"
+        placeholder="Write or paste a cover letter…"
+        class="w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-y leading-relaxed"
+      />
+      <pre v-else-if="job?.cover_letter" class="whitespace-pre-wrap text-sm text-muted-foreground font-sans leading-relaxed">{{ job.cover_letter }}</pre>
+      <p v-else class="text-sm text-muted-foreground italic">No cover letter yet.</p>
+
+      <p v-if="coverError" class="text-sm text-destructive">{{ coverError }}</p>
     </div>
 
     <!-- AI score reason -->
