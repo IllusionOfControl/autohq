@@ -12,6 +12,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '~/components/ui/dialog'
 import { JOB_STATUS, PIPELINE, BOARD_COLUMNS, scoreColor, type JobStatus } from '~/composables/useJobStatus'
+import JobPeek from '~/components/app/JobPeek.vue'
 
 definePageMeta({ layout: 'default' })
 useHead({ title: 'Jobs' })
@@ -123,9 +124,11 @@ async function fetchJobs() {
   loading.value = false
 }
 
-// ── Selection (table view) ───────────────────
+// ── Selection (board + table) ────────────────
 const selected = ref<Set<string>>(new Set())
 const selectionCount = computed(() => selected.value.size)
+/** true once at least one card is picked — used to reveal board checkboxes */
+const selectionActive = computed(() => selected.value.size > 0)
 
 function toggleOne(id: string) {
   const s = new Set(selected.value)
@@ -140,8 +143,36 @@ function toggleAll() {
   else filtered.value.forEach(j => s.add(j.id))
   selected.value = s
 }
+/** select / deselect every card in one board column */
+function toggleColumn(items: Job[]) {
+  const ids = items.map(j => j.id)
+  const s = new Set(selected.value)
+  const allSelected = ids.length > 0 && ids.every(id => s.has(id))
+  if (allSelected) ids.forEach(id => s.delete(id))
+  else ids.forEach(id => s.add(id))
+  selected.value = s
+}
 function clearSelection() {
   selected.value = new Set()
+}
+
+// ── Quick-view popup (Sheet) ─────────────────
+const peekOpen = ref(false)
+const peekJob = ref<Job | null>(null)
+function openPeek(job: Job) {
+  peekJob.value = job
+  peekOpen.value = true
+}
+/** popup changed a field in the DB → mirror it into our local list */
+function onPeekUpdated(id: string, patch: Record<string, unknown>) {
+  const j = jobs.value.find(j => j.id === id)
+  if (j) Object.assign(j, patch)
+}
+function onPeekDeleted(id: string) {
+  jobs.value = jobs.value.filter(j => j.id !== id)
+  const s = new Set(selected.value)
+  s.delete(id)
+  selected.value = s
 }
 
 // ── Delete (single + bulk) ───────────────────
@@ -348,9 +379,9 @@ onBeforeUnmount(() => {
       </template>
     </div>
 
-    <!-- Bulk action bar (table view, when rows selected) -->
+    <!-- Bulk action bar (board + table, when cards selected) -->
     <div
-      v-if="view === 'table' && selectionCount > 0"
+      v-if="selectionCount > 0"
       class="flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2"
     >
       <span class="text-sm font-medium">{{ selectionCount }} selected</span>
@@ -403,11 +434,11 @@ onBeforeUnmount(() => {
 
     <!-- ── BOARD VIEW ─────────────────────────── -->
     <div v-else-if="view === 'board'" class="-mx-1 overflow-x-auto pb-2">
-      <div class="flex gap-3 px-1 min-w-max">
+      <div class="flex gap-3 px-1">
         <div
           v-for="col in board"
           :key="col.status"
-          class="flex w-72 shrink-0 flex-col rounded-xl border bg-card/40 transition-colors"
+          class="flex flex-1 shrink-0 basis-0 min-w-[14rem] flex-col rounded-xl border bg-card/40 transition-colors"
           :class="dragOverCol === col.status ? 'border-primary/60 bg-primary/5' : 'border-border'"
           @dragover.prevent="dragOverCol = col.status"
           @dragleave="dragOverCol === col.status && (dragOverCol = null)"
@@ -416,6 +447,14 @@ onBeforeUnmount(() => {
           <!-- Column header -->
           <div class="flex items-center justify-between px-3 py-2.5 border-b">
             <span class="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                class="size-3.5 rounded border-border accent-primary cursor-pointer align-middle"
+                title="Select all in column"
+                :checked="col.items.length > 0 && col.items.every(j => selected.has(j.id))"
+                :disabled="col.items.length === 0"
+                @change="toggleColumn(col.items)"
+              >
               <span :class="['size-2 rounded-full', col.dot]" />
               {{ col.label }}
             </span>
@@ -432,24 +471,47 @@ onBeforeUnmount(() => {
               draggable="true"
               @dragstart="onDragStart(job)"
               @dragend="onDragEnd"
-              @click="navigateTo(`/jobs/${job.id}`)"
-              :class="['group relative cursor-grab active:cursor-grabbing rounded-lg border bg-card p-3 transition-all hover:border-primary/40',
+              @click="openPeek(job)"
+              :class="['group relative cursor-pointer rounded-lg border bg-card p-3 transition-all hover:border-primary/40',
+                selectionActive ? 'pl-9' : 'hover:pl-9',
+                selected.has(job.id) ? 'border-primary/60 ring-1 ring-primary/40 bg-primary/5' : '',
                 draggingId === job.id ? 'opacity-40 ring-1 ring-primary' : '']"
             >
-              <button
-                class="absolute right-1.5 top-1.5 hidden group-hover:flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                title="Delete"
-                @click.stop="askDelete([job.id])"
+              <!-- Selection checkbox (top-left) -->
+              <input
+                type="checkbox"
+                class="absolute left-2.5 top-3 size-4 rounded border-border accent-primary cursor-pointer transition-opacity"
+                :class="(selectionActive || selected.has(job.id)) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
+                :checked="selected.has(job.id)"
+                @click.stop
+                @change="toggleOne(job.id)"
               >
-                <Icon name="lucide:trash-2" class="size-3.5" />
-              </button>
-              <div class="flex items-start justify-between gap-2 pr-5">
-                <p class="text-sm font-medium leading-tight line-clamp-2 group-hover:text-primary transition-colors">{{ job.title }}</p>
-                <span
-                  v-if="job.fit_score != null"
-                  :class="['shrink-0 text-xs font-bold tabular-nums rounded-md px-1.5 py-0.5 bg-muted/60', scoreColor(job.fit_score)]"
-                >{{ job.fit_score }}</span>
+
+              <!-- Fit score (hidden on hover to make room for actions) -->
+              <span
+                v-if="job.fit_score != null"
+                :class="['absolute right-2 top-2 text-xs font-bold tabular-nums rounded-md px-1.5 py-0.5 bg-muted/60 transition-opacity group-hover:opacity-0', scoreColor(job.fit_score)]"
+              >{{ job.fit_score }}</span>
+
+              <!-- Hover actions (top-right) -->
+              <div class="absolute right-1.5 top-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                  title="Open full page"
+                  @click.stop="navigateTo(`/jobs/${job.id}`)"
+                >
+                  <Icon name="lucide:maximize-2" class="size-3.5" />
+                </button>
+                <button
+                  class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                  title="Delete"
+                  @click.stop="askDelete([job.id])"
+                >
+                  <Icon name="lucide:trash-2" class="size-3.5" />
+                </button>
               </div>
+
+              <p class="text-sm font-medium leading-tight line-clamp-2 pr-10 group-hover:text-primary transition-colors">{{ job.title }}</p>
               <p class="mt-1 text-xs text-muted-foreground truncate">{{ job.company }}</p>
               <div class="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                 <span class="flex items-center gap-1 truncate">
@@ -502,7 +564,7 @@ onBeforeUnmount(() => {
             :key="job.id"
             class="border-b last:border-0 hover:bg-accent/50 transition-colors cursor-pointer"
             :class="selected.has(job.id) ? 'bg-primary/5' : ''"
-            @click="navigateTo(`/jobs/${job.id}`)"
+            @click="openPeek(job)"
           >
             <td class="px-3 py-3" @click.stop>
               <input
@@ -537,13 +599,22 @@ onBeforeUnmount(() => {
               {{ formatTimeRelative(job.created_at) }}
             </td>
             <td class="px-3 py-3" @click.stop>
-              <button
-                class="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                title="Delete"
-                @click="askDelete([job.id])"
-              >
-                <Icon name="lucide:trash-2" class="size-4" />
-              </button>
+              <div class="flex items-center gap-0.5">
+                <button
+                  class="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                  title="Open full page"
+                  @click="navigateTo(`/jobs/${job.id}`)"
+                >
+                  <Icon name="lucide:maximize-2" class="size-4" />
+                </button>
+                <button
+                  class="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                  title="Delete"
+                  @click="askDelete([job.id])"
+                >
+                  <Icon name="lucide:trash-2" class="size-4" />
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -552,7 +623,7 @@ onBeforeUnmount(() => {
 
     <p v-if="view === 'board' && jobs.length" class="text-xs text-muted-foreground flex items-center gap-1.5">
       <Icon name="lucide:move" class="size-3.5" />
-      Drag cards between columns to change status. Hover a card to delete it.
+      Drag to change status · click for a quick view · <Icon name="lucide:maximize-2" class="size-3" /> opens the full page · check cards for bulk actions.
     </p>
 
     <!-- Delete confirmation -->
@@ -574,6 +645,14 @@ onBeforeUnmount(() => {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <!-- Quick-view popup -->
+    <JobPeek
+      v-model:open="peekOpen"
+      :job="peekJob"
+      @updated="onPeekUpdated"
+      @deleted="onPeekDeleted"
+    />
 
   </div>
 </template>
