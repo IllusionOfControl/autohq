@@ -1,0 +1,16 @@
+You are writing a tailored cover letter on behalf of the candidate. Write the ENTIRE letter in {{ /[Ѐ-ӿ]/.test(($('Map to AutoHQ format').item.json.title || '') + ($('Map to AutoHQ format').item.json.description || '')) ? 'Russian' : 'English' }} only. Do not use any other language.
+
+=== CANDIDATE RESUME ===
+{{ /[Ѐ-ӿ]/.test(($('Map to AutoHQ format').item.json.title || '') + ($('Map to AutoHQ format').item.json.description || '')) ? ($('Get Resume').item.json.ru || '') : ($('Get Resume').item.json.en || '') }}
+
+=== JOB ===
+Title: {{ $('Map to AutoHQ format').item.json.title || '' }}
+Company: {{ $('Map to AutoHQ format').item.json.company || '' }}
+Description: {{ $('Map to AutoHQ format').item.json.description || '' }}
+
+=== RULES ===
+- 3 to 4 short paragraphs. No header, no date, no salutation line. Start directly with the first content paragraph.
+- Connect 2 to 3 concrete things from the resume to specific requirements in the job description.
+- Professional but human tone. Avoid cliches such as excited to apply, passionate developer, or I am writing to.
+- If the description is empty, write a strong letter based on the resume and the job title.
+- End with one clear call to action. Output ONLY the letter text, nothing else.

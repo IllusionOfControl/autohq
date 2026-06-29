@@ -213,41 +213,63 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.openai.com/v1/chat/completions",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'You are writing a tailored cover letter on behalf of the candidate. Write the ENTIRE letter in ' + (/[\\u0400-\\u04FF]/.test(($('Map to AutoHQ format').item.json.title || '') + ($('Map to AutoHQ format').item.json.description || '')) ? 'Russian' : 'English') + ' only. Do not use any other language.\\n\\n=== CANDIDATE RESUME ===\\n' + (/[\\u0400-\\u04FF]/.test(($('Map to AutoHQ format').item.json.title || '') + ($('Map to AutoHQ format').item.json.description || '')) ? ($('Get Resume').item.json.ru || '') : ($('Get Resume').item.json.en || '')) + '\\n\\n=== JOB ===\\nTitle: ' + ($('Map to AutoHQ format').item.json.title || '') + '\\nCompany: ' + ($('Map to AutoHQ format').item.json.company || '') + '\\nDescription: ' + ($('Map to AutoHQ format').item.json.description || '') + '\\n\\n=== RULES ===\\n- 3 to 4 short paragraphs. No header, no date, no salutation line. Start directly with the first content paragraph.\\n- Connect 2 to 3 concrete things from the resume to specific requirements in the job description.\\n- Professional but human tone. Avoid cliches such as excited to apply, passionate developer, or I am writing to.\\n- If the description is empty, write a strong letter based on the resume and the job title.\\n- End with one clear call to action. Output ONLY the letter text, nothing else.' }] }) }}",
-        "options": {
-          "response": {
-            "response": {
-              "responseFormat": "json"
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{>cover-letter}}",
+              "role": "user"
             }
-          }
-        }
+          ]
+        },
+        "options": {}
       },
       "id": "openai-cover",
       "name": "OpenAI Cover Letter",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
       "position": [
         1320,
+        180
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "{{OPENAI_CREDENTIAL_ID}}",
+          "name": "AutoHQ OpenAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "merge-hh",
+      "name": "Combine Job + Letter",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1500,
         300
       ]
     },
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const job = $('Map to AutoHQ format').item.json;\nlet cover_letter = '';\ntry {\n  cover_letter = (($('OpenAI Cover Letter').item.json.choices?.[0]?.message?.content) || '').trim();\n} catch (e) { /* leave empty on any parse issue */ }\nreturn { ...job, cover_letter };"
+        "jsCode": "// Input is the Map row merged (by position) with the OpenAI response, so both\n// are present on $json — nothing from Map is lost. Pull the letter out of the\n// model response, drop the response fields, keep the job row.\nconst { message, content, text, choices, index, finish_reason, role, ...job } = $input.item.json;\nlet cover_letter = '';\ntry {\n  cover_letter = (message?.content ?? content ?? text ?? choices?.[0]?.message?.content ?? '').toString().trim();\n} catch (e) { /* leave empty on any parse issue */ }\nreturn { ...job, cover_letter };"
       },
       "id": "assemble",
       "name": "Assemble",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1500,
+        1680,
         300
       ]
     }
@@ -315,11 +337,27 @@
             "node": "OpenAI Cover Letter",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Combine Job + Letter",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
     },
     "OpenAI Cover Letter": {
+      "main": [
+        [
+          {
+            "node": "Combine Job + Letter",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Combine Job + Letter": {
       "main": [
         [
           {
