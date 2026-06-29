@@ -243,7 +243,7 @@ The [`n8n/`](n8n/) folder contains starter workflow exports and helper scripts.
    at your app with the right webhook secret — no manual node editing.
    ```bash
    # set N8N_API_URL + N8N_API_KEY (Settings → n8n API), plus
-   # NUXT_PUBLIC_APP_URL + WEBHOOK_SECRET in .env first
+   # NUXT_PUBLIC_APP_URL + WEBHOOK_SECRET + OPENAI_API_KEY in .env first
    npm run n8n:sync            # create/update by name
    npm run n8n:sync -- --activate
    ```
@@ -258,11 +258,17 @@ The [`n8n/`](n8n/) folder contains starter workflow exports and helper scripts.
    token are read at runtime from the app via a *Get Config* node baked into each workflow, so you
    change them on the *Control* page, not in n8n.
 3. **AI cover letters are already wired** — each workflow fetches the live resume (`GET /api/resume`),
-   builds a language-aware prompt from the job description, and calls OpenAI (*OpenAI Cover Letter* node)
-   before posting the result with a `cover_letter`. You only need to attach the credential: create an
-   **Header Auth** credential with header `Authorization` = `Bearer sk-…` and select it on the
-   *OpenAI Cover Letter* node (never inline the key). Optional next step: add an *OpenAI Score* node that
-   returns a `fit_score`, and a Telegram node gated on the webhook's `telegram_notify` response.
+   builds a language-aware prompt from the job description, and calls OpenAI via the dedicated
+   **OpenAI** node (`@n8n/n8n-nodes-langchain.openAi`, *Message a Model*) before posting the result
+   with a `cover_letter`. The credential is provisioned for you: `n8n:sync` creates an n8n OpenAI
+   credential named **AutoHQ OpenAI** from `OPENAI_API_KEY` / `OPENAI_BASE_URL` and wires its id into
+   both workflows — no manual credential setup. (The id is cached in `n8n/.credentials.json`, which is
+   gitignored; the Public API can't list or patch credentials, so a rotated key is applied by
+   delete + recreate on the next sync.) The prompt itself lives in
+   [`n8n/prompts/cover-letter.txt`](n8n/prompts/cover-letter.txt) and is injected at push time via the
+   `{{>cover-letter}}` include, so you tune it in one place for both workflows. Optional next step: add
+   an *OpenAI Score* node that returns a `fit_score`, and a Telegram node gated on the webhook's
+   `telegram_notify` response.
 4. **Activate** the workflows. They'll run on their cron schedule and your dashboard fills up.
 
 The webhook respects your **live settings**: a posting is skipped if its source is disabled in the
@@ -317,7 +323,8 @@ which statuses count as "applied", score-to-color thresholds), so the whole UI s
 - **Score threshold for alerts** — the slider on *Control* (`telegram_min_score`).
 - **Sources** — toggle existing ones on *Control*; add a new one by creating a new n8n workflow + a row
   in `source_settings`.
-- **Scoring & cover-letter prompts** — they live in the n8n OpenAI nodes. Tune them to your stack and tone.
+- **Cover-letter prompt** — edit [`n8n/prompts/cover-letter.txt`](n8n/prompts/cover-letter.txt) and re-run
+  `npm run n8n:sync`. It's shared by both workflows. Tune it to your stack and tone.
 
 ---
 
