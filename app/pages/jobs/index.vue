@@ -3,10 +3,8 @@ import { useStorage } from '@vueuse/core'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '~/components/ui/select'
-import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from '~/components/ui/dropdown-menu'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -35,7 +33,8 @@ const supabase = useSupabaseClient()
 const view = useStorage<'board' | 'table'>('autohq:jobs-view', 'board')
 const search = ref('')
 const statusFilter = ref<'all' | JobStatus>('all')
-const sourceFilter = ref<'all' | string>('all')
+/** empty Set = no filter (show all sources); otherwise only listed sources pass */
+const sourceFilter = ref<Set<string>>(new Set())
 const sortBy = ref<'score' | 'date'>('score')
 const jobs = ref<Job[]>([])
 const loading = ref(true)
@@ -46,6 +45,7 @@ const SOURCE_LABELS: Record<string, string> = {
   habr: 'Habr Career',
   hh: 'HH.ru',
   djinni: 'Djinni',
+  linkedin: 'LinkedIn',
   unknown: 'Other',
 }
 function sourceLabel(s: string | null): string {
@@ -71,8 +71,29 @@ const counts = computed(() => {
 })
 
 function matchSource(j: Job) {
-  return sourceFilter.value === 'all' || (j.source ?? 'unknown') === sourceFilter.value
+  return sourceFilter.value.size === 0 || sourceFilter.value.has(j.source ?? 'unknown')
 }
+/** toggle one source in/out of the filter set (new Set so Vue sees the change) */
+function toggleSource(s: string) {
+  const next = new Set(sourceFilter.value)
+  next.has(s) ? next.delete(s) : next.add(s)
+  sourceFilter.value = next
+}
+/** keep the dropdown open while ticking sources, then toggle */
+function onSourceSelect(e: Event, s: string) {
+  e.preventDefault()
+  toggleSource(s)
+}
+/** label for the filter button: "All sources" / single name / "N sources" */
+const sourceFilterLabel = computed(() => {
+  const n = sourceFilter.value.size
+  if (n === 0) return 'All sources'
+  if (n === 1) {
+    const [s] = [...sourceFilter.value]
+    return sourceLabel(s === 'unknown' ? null : s)
+  }
+  return `${n} sources`
+})
 
 const filtered = computed(() => {
   const q = search.value.toLowerCase()
@@ -336,21 +357,38 @@ onBeforeUnmount(() => {
         <Input v-model="search" placeholder="Search title or company…" class="pl-8" />
       </div>
 
-      <!-- Source filter (both views) -->
-      <Select v-model="sourceFilter">
-        <SelectTrigger class="w-[170px]">
-          <span class="flex items-center gap-1.5">
-            <Icon name="lucide:rss" class="size-3.5 text-muted-foreground" />
-            <SelectValue placeholder="All sources" />
-          </span>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All sources ({{ jobs.length }})</SelectItem>
-          <SelectItem v-for="[s, c] in sources" :key="s" :value="s">
-            {{ sourceLabel(s === 'unknown' ? null : s) }} ({{ c }})
-          </SelectItem>
-        </SelectContent>
-      </Select>
+      <!-- Source filter (both views) — multi-select -->
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button variant="outline" class="w-[180px] justify-between font-normal">
+            <span class="flex items-center gap-1.5 truncate">
+              <Icon name="lucide:rss" class="size-3.5 text-muted-foreground shrink-0" />
+              {{ sourceFilterLabel }}
+            </span>
+            <Icon name="lucide:chevron-down" class="size-3.5 text-muted-foreground shrink-0" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" class="w-[200px]">
+          <DropdownMenuLabel class="flex items-center justify-between">
+            Sources
+            <button
+              v-if="sourceFilter.size"
+              class="text-xs font-normal text-muted-foreground hover:text-foreground"
+              @click="sourceFilter = new Set()"
+            >Clear</button>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuCheckboxItem
+            v-for="[s, c] in sources"
+            :key="s"
+            :model-value="sourceFilter.has(s)"
+            @select="onSourceSelect($event, s)"
+          >
+            {{ sourceLabel(s === 'unknown' ? null : s) }}
+            <span class="ml-1 text-muted-foreground">({{ c }})</span>
+          </DropdownMenuCheckboxItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <template v-if="view === 'table'">
         <button

@@ -98,7 +98,7 @@ async function del() {
 
 const SOURCE_LABELS: Record<string, string> = {
   remotive: 'Remotive', arbeitnow: 'Arbeitnow', habr: 'Habr Career',
-  hh: 'HH.ru', djinni: 'Djinni', unknown: 'Other',
+  hh: 'HH.ru', djinni: 'Djinni', linkedin: 'LinkedIn', unknown: 'Other',
 }
 function sourceLabel(s: string | null): string {
   if (!s) return 'Other'
