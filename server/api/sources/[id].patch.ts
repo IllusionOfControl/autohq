@@ -1,6 +1,7 @@
 export default defineEventHandler(async (event) => {
   const sourceId = getRouterParam(event, 'id')
-  const body = await readBody(event)
+  if (!sourceId) throw createError({ status: 400, message: 'id is required' })
+  const body = (await readBody(event)) ?? {}
 
   const allowed = ['site_enabled', 'telegram_enabled']
   const updates: Record<string, boolean | string> = {}

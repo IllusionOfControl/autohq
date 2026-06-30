@@ -3,6 +3,10 @@
  * Source of truth lives in the repo; this reads the current markdown so the
  * app always shows what's there.
  *
+ * Gated: callers must present a valid owner session (the UI) or the shared
+ * `x-autohq-token` secret (n8n). Otherwise a private repo's resume would be
+ * readable by anyone who knows the URL.
+ *
  * Configured via env vars:
  *   RESUME_REPO     — "owner/repo" of the private repo (required)
  *   RESUME_PATH_EN  — path to the English markdown inside the repo
@@ -27,6 +31,13 @@ async function fetchRaw(path: string, token: string): Promise<string> {
 }
 
 export default defineEventHandler(async (event) => {
+  // Gate: a logged-in owner session (the UI) or the shared secret (n8n).
+  // Without this the resume markdown of a private repo would be world-readable.
+  const session = await getUserSession(event)
+  if (!session?.user && !hasValidAutohqToken(event)) {
+    throw createError({ status: 401, message: 'Unauthorized' })
+  }
+
   const q = (getQuery(event).lang as string) || 'en'
   const token = process.env.GITHUB_TOKEN || process.env.NUXT_GITHUB_TOKEN
 

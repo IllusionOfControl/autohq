@@ -3,7 +3,7 @@ const ALLOWED = ['status', 'applied_at'] as const
 
 export default defineEventHandler(async (event) => {
   const sql = useDb()
-  const { ids, patch } = await readBody(event)
+  const { ids, patch } = (await readBody(event)) ?? {}
 
   if (!Array.isArray(ids) || ids.length === 0) {
     throw createError({ status: 400, message: 'ids are required' })

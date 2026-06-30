@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
   updates.updated_at = new Date().toISOString()
 
   const sql = useDb()
-  const row = { id: 1, ...updates }
+  const row: Record<string, unknown> = { id: 1, ...updates }
   const cols = Object.keys(updates)
 
   await sql`

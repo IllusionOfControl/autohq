@@ -2,6 +2,7 @@
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { JOB_STATUS, PIPELINE, scoreColor, type JobStatus } from '~/composables/useJobStatus'
+import type { Job } from '#shared/types/job'
 
 definePageMeta({ layout: 'default' })
 
@@ -15,7 +16,7 @@ const error = ref('')
 const STATUS_PIPELINE = PIPELINE
 
 const { data: job, refresh } = await useAsyncData(`job-${route.params.id}`, () =>
-  $fetch(`/api/jobs/${route.params.id}`),
+  $fetch<Job>(`/api/jobs/${route.params.id}`),
 )
 
 if (!job.value) throw createError({ statusCode: 404, message: 'Job not found' })

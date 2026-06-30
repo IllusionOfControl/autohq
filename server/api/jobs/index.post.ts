@@ -1,3 +1,5 @@
+import type { Job } from '#shared/types/job'
+
 /** Manually create a job (the "Add Job" form). */
 export default defineEventHandler(async (event) => {
   const sql = useDb()
@@ -20,7 +22,7 @@ export default defineEventHandler(async (event) => {
     notes: body.notes || null,
   }
 
-  const [created] = await sql`insert into jobs ${sql(row)} returning *`
+  const [created] = await sql<Job[]>`insert into jobs ${sql(row)} returning *`
   if (!created) throw createError({ status: 500, message: 'Insert failed' })
   return created
 })

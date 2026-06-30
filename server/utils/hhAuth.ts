@@ -20,6 +20,10 @@ const USER_AGENT = 'AutoHQ-JobBot/1.0 (autohq)'
 // Refresh a bit early so n8n never receives an already-expired token.
 const REFRESH_MARGIN_MS = 60_000
 
+// Postgres advisory-lock key serializing token refreshes (see below). Arbitrary
+// constant, just has to be stable and unique within the app.
+const HH_REFRESH_LOCK_KEY = 718_241_903
+
 export interface HhCreds { clientId: string; clientSecret: string }
 
 interface HhTokenResponse {
@@ -140,11 +144,29 @@ export async function getValidHhAccessToken(): Promise<string | null> {
   const expMs = row.expires_at ? new Date(row.expires_at).getTime() : 0
   if (expMs - REFRESH_MARGIN_MS > Date.now()) return row.access_token
 
-  // Expired or about to — refresh. If the refresh itself fails, surface null
-  // rather than throwing, so a stale token never breaks the n8n run.
-  try {
-    return await refreshHhTokens(row.refresh_token)
-  } catch {
-    return null
-  }
+  // Expired or about to expire — refresh, but serialize it. HH refresh tokens
+  // are single-use, so two concurrent runs would each refresh and invalidate
+  // the other's token. A transaction-scoped advisory lock makes the second
+  // caller wait, then re-read the row the first one just refreshed instead of
+  // refreshing again. If the refresh itself fails, surface null rather than
+  // throwing, so a stale token never breaks the n8n run.
+  const sql = useDb()
+  return sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(${HH_REFRESH_LOCK_KEY})`
+
+    const [fresh] = await tx<ProviderAuthRow[]>`
+      select provider, access_token, refresh_token, expires_at, scope, connected_at
+      from provider_auth where provider = 'hh'
+    `
+    if (!fresh?.refresh_token) return null
+
+    const freshExpMs = fresh.expires_at ? new Date(fresh.expires_at).getTime() : 0
+    if (freshExpMs - REFRESH_MARGIN_MS > Date.now()) return fresh.access_token
+
+    try {
+      return await refreshHhTokens(fresh.refresh_token)
+    } catch {
+      return null
+    }
+  })
 }

@@ -7,7 +7,7 @@ definePageMeta({ layout: 'default' })
 useHead({ title: 'Resume' })
 
 const REPO = 'CredoRevolution/obsidian-git-sync'
-const PATHS: Record<string, string> = { en: 'Personal/Resume EN.md', ru: 'Personal/Resume RU.md' }
+const PATHS: Record<'en' | 'ru', string> = { en: 'Personal/Resume EN.md', ru: 'Personal/Resume RU.md' }
 
 const lang = useStorage<'en' | 'ru'>('autohq:resume-lang', 'en')
 

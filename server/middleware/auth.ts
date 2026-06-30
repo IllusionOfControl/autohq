@@ -6,7 +6,8 @@
  *   - /api/auth/*   — (reserved) auth helpers
  *   - /api/webhook/*— authenticated by its own shared secret (n8n)
  *   - /api/n8n/*    — authenticated by the same shared secret (n8n)
- *   - /api/resume   — read-only, also consumed by n8n
+ *   - /api/resume   — self-gated: requires a session OR the shared secret
+ *                     (consumed by both the UI and n8n), so it opts out here
  */
 const PUBLIC_PREFIXES = ['/api/_auth', '/api/auth', '/api/webhook', '/api/n8n', '/api/resume']
 

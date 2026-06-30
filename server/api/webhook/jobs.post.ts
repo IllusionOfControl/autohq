@@ -1,11 +1,8 @@
 export default defineEventHandler(async (event) => {
-  const secret = process.env.WEBHOOK_SECRET || process.env.NUXT_WEBHOOK_SECRET
-  if (!secret) {
-    throw createError({ status: 500, message: 'WEBHOOK_SECRET is not configured' })
+  if (!autohqSecret()) {
+    throw createError({ status: 500, message: 'AUTOHQ_SECRET_TOKEN is not configured' })
   }
-
-  const authHeader = getHeader(event, 'x-webhook-secret')
-  if (authHeader !== secret) {
+  if (!hasValidAutohqToken(event)) {
     throw createError({ status: 401, message: 'Unauthorized' })
   }
 
