@@ -114,8 +114,8 @@
         "modelId": {
           "__rl": true,
           "mode": "list",
-          "value": "gpt-4o-mini",
-          "cachedResultName": "gpt-4o-mini"
+          "value": "gemma",
+          "cachedResultName": "gemma"
         },
         "messages": {
           "values": [
@@ -161,8 +161,8 @@
         "modelId": {
           "__rl": true,
           "mode": "list",
-          "value": "gpt-4o-mini",
-          "cachedResultName": "gpt-4o-mini"
+          "value": "gemma",
+          "cachedResultName": "gemma"
         },
         "messages": {
           "values": [

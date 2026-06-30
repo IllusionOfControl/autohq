@@ -258,7 +258,9 @@ The [`n8n/`](n8n/) folder contains starter workflow exports and helper scripts.
    - an **OpenAI Cover Letter** node writes a language-aware `cover_letter`.
    The OpenAI credential is provisioned for you: `n8n:sync` creates an n8n credential named
    **AutoHQ OpenAI** from `OPENAI_API_KEY` / `OPENAI_BASE_URL` and wires its id into both workflows —
-   no manual setup. (The id is cached in `n8n/.credentials.json`, which is gitignored; the Public API
+   no manual setup. By default the Docker stack runs these nodes against the bundled **llama.cpp**
+   server (`OPENAI_BASE_URL=http://llamacpp:8080/v1`, model `gemma`) — point `OPENAI_BASE_URL` at
+   `https://api.openai.com/v1` with a real key to use hosted OpenAI instead. (The id is cached in `n8n/.credentials.json`, which is gitignored; the Public API
    can't list or patch credentials, so a rotated key is applied by delete + recreate on the next
    sync.) Both prompts live in [`n8n/prompts/`](n8n/prompts/) ([`score.txt`](n8n/prompts/score.txt),
    [`cover-letter.txt`](n8n/prompts/cover-letter.txt)) and are injected at push time via the

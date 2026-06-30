@@ -111,6 +111,9 @@ services:
     command:
       - "-hf"
       - "unsloth/gemma-4-E4B-it-GGUF:UD-Q4_K_XL"
+      # Stable model id the n8n nodes target (instead of the long gguf filename).
+      - "--alias"
+      - "gemma"
       - "--host"
       - "0.0.0.0"
       - "--port"
