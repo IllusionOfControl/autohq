@@ -89,6 +89,36 @@ services:
       db:
         condition: service_healthy
 
+  # Local, OpenAI-compatible LLM server (llama.cpp). Serves the Gemma model
+  # straight from HuggingFace: llama-server downloads the GGUF on first start
+  # (the `-hf repo:quant` syntax) and caches it in the llamacpp_models volume,
+  # so later starts are offline. Exposes an OpenAI-compatible API at
+  # http://llamacpp:8080/v1 (and a /health endpoint) on the compose network —
+  # point OPENAI_BASE_URL there to run the n8n Score/Cover nodes against it.
+  #
+  # CPU image by default. For an NVIDIA GPU, switch the image to
+  # `ghcr.io/ggml-org/llama.cpp:server-cuda`, add `--n-gpu-layers 99` to the
+  # command, and a GPU reservation under `deploy.resources` (or `--gpus all`).
+  llamacpp:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: autohq_llamacpp
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Where -hf caches downloaded GGUFs; backed by the named volume below.
+      - LLAMA_CACHE=/models
+    command:
+      - "-hf"
+      - "unsloth/gemma-4-E4B-it-GGUF:UD-Q4_K_XL"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8080"
+    volumes:
+      - llamacpp_models:/models
+
 volumes:
   n8n_data:
   pg_data:
+  llamacpp_models:
