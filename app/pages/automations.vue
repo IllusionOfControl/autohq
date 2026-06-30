@@ -61,6 +61,7 @@ const lastImport = ref<Record<string, string>>({})
 
 const sourceMeta: Record<string, { icon: string; color: string; description: string; auth?: boolean }> = {
   hh:        { icon: 'lucide:building-2', color: 'text-rose-400',    description: 'Россия и СНГ', auth: true },
+  rabota:    { icon: 'lucide:map-pin',    color: 'text-amber-400',   description: 'Беларусь — Брест/Минск' },
   remotive:  { icon: 'lucide:globe',      color: 'text-blue-400',    description: 'Международные remote' },
   arbeitnow: { icon: 'lucide:laptop',     color: 'text-emerald-400', description: 'Remote-first по тегам' },
   habr:      { icon: 'lucide:code',       color: 'text-sky-400',     description: 'Хабр Карьера' },
@@ -243,7 +244,7 @@ onMounted(() => { loadConfig(); loadSources(); loadLastImport(); loadHhStatus() 
             class="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 resize-none"
           />
           <p class="text-xs text-muted-foreground">
-            Просто слова через пробел — <code class="bg-muted px-1 rounded">vue nuxt typescript</code>. n8n читает это при каждом прогоне и сам подставляет нужный синтаксис под каждый источник (Remotive, оба HH.ru, Djinni). Arbeitnow и Habr ищут по своим тегам.
+            Просто слова через пробел — <code class="bg-muted px-1 rounded">vue nuxt typescript</code>. n8n читает это при каждом прогоне и сам подставляет нужный синтаксис под каждый источник (Remotive, HH.ru, rabota.by, Djinni). Arbeitnow и Habr ищут по своим тегам.
           </p>
         </div>
 

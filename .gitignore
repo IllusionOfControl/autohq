@@ -28,3 +28,7 @@ n8n/.credentials.json
 
 # Generated repo dump (repomix)
 repomix-output.xml
+
+# Live n8n workflow exports — contain the OpenAI API key in node headers
+n8n/live/
+n8n/fixed/

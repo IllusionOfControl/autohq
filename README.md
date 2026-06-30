@@ -50,7 +50,7 @@ It's built as two halves that talk over a single webhook:
 | 🤖 **AI scoring** | Every posting rated **1–100** against your profile; only relevant jobs surface to the top. |
 | ✍️ **Auto cover letters** | OpenAI writes a tailored, language-aware (EN/RU) cover letter per job — no clichés, references your real projects. |
 | 📲 **Telegram alerts** | Get pinged *only* for jobs scoring above your threshold (default ≥ 70). No noise. |
-| 🔌 **Multiple sources** | Remotive, Arbeitnow, HH.ru, Djinni out of the box — each its own n8n workflow, toggleable from the UI. |
+| 🔌 **Multiple sources** | Remotive, Arbeitnow, HH.ru, rabota.by (Belarus), Djinni out of the box — each its own n8n workflow, toggleable from the UI. |
 | 📊 **Pipeline dashboard** | Stats, a funnel view, top matches, and a Kanban board from *new* to *offer*. |
 | 📄 **Live resume** | Your resume is rendered straight from a Markdown file in a GitHub repo (e.g. an Obsidian vault) — single source of truth. |
 | 🎛️ **Live control panel** | Change search keywords, score threshold, and enable/disable sources without redeploying — n8n reads these at runtime. |
@@ -66,7 +66,7 @@ flowchart TD
 
     subgraph n8n["n8n · self-hosted"]
         direction TB
-        fetch["Fetch postings<br/>Remotive · Arbeitnow · HH · Djinni"]
+        fetch["Fetch postings<br/>Remotive · Arbeitnow · HH · rabota.by · Djinni"]
         ai["OpenAI<br/>score 1–100 + cover letter"]
         tg["Telegram alert<br/>score ≥ threshold"]
         fetch --> ai
@@ -228,6 +228,7 @@ The repo is Vercel-ready ([`vercel.json`](vercel.json)):
 
 The [`n8n/`](n8n/) folder contains starter workflow exports and helper scripts.
 
+<<<<<<< HEAD
 1. **Push the workflows via the Public API** (recommended) — the JSON files are
    templates: they carry `{{APP_URL}}` and `{{AUTOHQ_SECRET_TOKEN}}` placeholders that
    `n8n:sync` renders from your `.env` at push time, so each workflow already points
