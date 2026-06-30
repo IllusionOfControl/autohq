@@ -48,11 +48,16 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
+    # Verify the server is up AND both databases were actually created by the
+    # init script. A plain `pg_isready` reports ready during the bootstrap phase
+    # (before /docker-entrypoint-initdb.d runs), which would let dependents start
+    # before `autohq` / `autohq_n8n` exist. Connecting with psql avoids that race.
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      test: [ "CMD-SHELL", "psql -U postgres -d autohq -tAc 'SELECT 1' && psql -U postgres -d autohq_n8n -tAc 'SELECT 1'" ]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
 
   n8n:
     image: docker.n8n.io/n8nio/n8n:latest
