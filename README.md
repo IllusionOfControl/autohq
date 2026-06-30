@@ -60,42 +60,31 @@ It's built as two halves that talk over a single webhook:
 
 ## Architecture
 
-```
-                          ┌──────────────────────────────────────────────┐
-                          │                  n8n                         │
-   ⏰ weekday cron  ─────▶│  Fetch (Remotive / Arbeitnow / HH / Djinni)  │
-                          │            │                                 │
-                          │            ▼                                 │
-                          │   OpenAI: score 1–100 + cover letter         │
-                          │            │                                 │
-                          │   ┌────────┴────────┐                        │
-                          │   ▼                 ▼                        │
-                          │  Telegram      POST /api/webhook/jobs ──────┼──┐
-                          │  (score ≥ N)        (x-autohq-token)        │  │
-                          └─────────────────────────────────────────────┘  │
-                                          ▲                                 │
-   HH: live config + fresh OAuth token    │  GET /api/n8n/hh                 │
-   (keywords / lookback / hh_access_token) │  (x-autohq-token)               │
-                                          └─────────────────────────────────┘
-                                                                            │
-                          ┌─────────────────────────────────────────────────▼─┐
-                          │              Nuxt 4 app  (Vercel)                  │
-                          │                                                    │
-                          │   Dashboard · Jobs · Applications · Resume · Control│
-                          │                       │                            │
-                          │                       ▼                            │
-                          │     server API (postgres) + GitHub OAuth session   │
-                          │                       │                            │
-                          │                       ▼                            │
-                          │                  PostgreSQL                        │
-                          │   (jobs, app_config, source_settings, profile)     │
-                          └────────────────────────────────────────────────────┘
-                                          ▲
-                                          │ live resume (GitHub raw API)
-                          ┌───────────────┴───────────────┐
-                          │  Private repo (Obsidian vault) │
-                          │   Resume EN.md / Resume RU.md   │
-                          └─────────────────────────────────┘
+```mermaid
+flowchart TD
+    cron(["⏰ weekday cron"]) --> fetch
+
+    subgraph n8n["n8n · self-hosted"]
+        direction TB
+        fetch["Fetch postings<br/>Remotive · Arbeitnow · HH · Djinni"]
+        ai["OpenAI<br/>score 1–100 + cover letter"]
+        tg["Telegram alert<br/>score ≥ threshold"]
+        fetch --> ai
+        ai --> tg
+    end
+
+    subgraph app["Nuxt 4 app · Vercel"]
+        direction TB
+        ui["Dashboard · Jobs · Applications<br/>Resume · Control"]
+        api["server API<br/>+ GitHub OAuth session"]
+        db[("PostgreSQL<br/>jobs · app_config<br/>source_settings · profile")]
+        ui --> api
+        api --> db
+    end
+
+    ai -->|"POST /api/webhook/jobs<br/>x-autohq-token"| api
+    fetch -.->|"GET /api/n8n/hh · /api/resume<br/>live config + fresh HH token<br/>x-autohq-token"| api
+    repo["Private repo · Obsidian vault<br/>Resume EN.md / Resume RU.md"] -.->|"live resume<br/>GitHub raw API"| api
 ```
 
 ### Tech stack

@@ -1,0 +1,27 @@
+# Keep the build context (and image layers) free of secrets, local state and
+# generated output. Mirrors .gitignore where it matters.
+node_modules
+.nuxt
+.nitro
+.output
+.data
+.cache
+dist
+
+.git
+.gitignore
+
+# Local env files — never bake secrets into an image layer
+.env
+.env.*
+!.env.example
+
+# Logs & misc
+*.log
+logs
+.DS_Store
+.idea
+.fleet
+
+# Repo dump / scratch
+repomix-output.xml
