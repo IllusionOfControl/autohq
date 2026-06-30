@@ -23,6 +23,35 @@
     },
     {
       "parameters": {
+        "url": "{{APP_URL}}/api/resume?lang=both",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-autohq-token",
+              "value": "{{AUTOHQ_SECRET_TOKEN}}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "get-resume",
+      "name": "Get Resume",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
         "url": "https://remotive.com/api/remote-jobs",
         "sendQuery": true,
         "queryParameters": {
@@ -68,75 +97,62 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.item.json;\n\nreturn {\n  title: item.title,\n  company: item.company_name,\n  url: item.url,\n  location: item.candidate_required_location || 'Worldwide',\n  remote: true,\n  status: 'new',\n  fit_score: null,\n  salary_min: null,\n  salary_max: null,\n  source: 'remotive',\n  external_id: String(item.id),\n  description: ((item.description || '') + '').replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 1500),\n  notes: `Source: Remotive | Tags: ${(item.tags || []).join(', ')}`\n};",
-        "mode": "runOnceForEachItem"
+        "mode": "runOnceForEachItem",
+        "jsCode": "const item = $input.item.json;\n\nreturn {\n  title: item.title,\n  company: item.company_name,\n  url: item.url,\n  location: item.candidate_required_location || 'Worldwide',\n  remote: true,\n  status: 'new',\n  fit_score: null,\n  salary_min: null,\n  salary_max: null,\n  source: 'remotive',\n  external_id: String(item.id),\n  description: ((item.description || '') + '').replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 1500),\n  notes: `Source: Remotive | Tags: ${(item.tags || []).join(', ')}`\n};"
       },
       "id": "map-rem",
       "name": "Map to AutoHQ format",
       "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         1040,
         300
-      ],
-      "typeVersion": 2
+      ]
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "{{APP_URL}}/api/webhook/jobs",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "messages": {
+          "values": [
             {
-              "name": "x-autohq-token",
-              "value": "{{AUTOHQ_SECRET_TOKEN}}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
+              "content": "={{>score}}",
+              "role": "user"
             }
           ]
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ $json }}",
         "options": {}
       },
-      "id": "post-rem",
-      "name": "Send to AutoHQ",
-      "type": "n8n-nodes-base.httpRequest",
+      "id": "openai-score-rem",
+      "name": "OpenAI Score",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
       "position": [
-        1640,
+        1220,
         300
       ],
-      "typeVersion": 4.2
+      "credentials": {
+        "openAiApi": {
+          "id": "{{OPENAI_CREDENTIAL_ID}}",
+          "name": "AutoHQ OpenAI"
+        }
+      }
     },
     {
       "parameters": {
-        "url": "{{APP_URL}}/api/resume?lang=both",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "x-autohq-token",
-              "value": "{{AUTOHQ_SECRET_TOKEN}}"
-            }
-          ]
-        },
-        "options": {
-          "response": {
-            "response": {
-              "responseFormat": "json"
-            }
-          }
-        }
+        "mode": "runOnceForEachItem",
+        "jsCode": "const job = $('Map to AutoHQ format').item.json;\nconst raw = $input.item.json;\nlet text = '';\ntry { text = (raw.message?.content ?? raw.content ?? raw.text ?? raw.choices?.[0]?.message?.content ?? '').toString(); } catch (e) {}\nlet score = null;\nlet reason = '';\ntry {\n  const parsed = JSON.parse((text.match(/\\{[\\s\\S]*\\}/) || [text])[0]);\n  score = Number(parsed.score);\n  reason = (parsed.reason || '').toString().trim();\n} catch (e) {\n  const m = text.match(/\\d{1,3}/);\n  if (m) score = Number(m[0]);\n}\nscore = Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : null;\nreturn { ...job, fit_score: score, score_reason: reason || null };"
       },
-      "id": "get-resume",
-      "name": "Get Resume",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "id": "parse-score-rem",
+      "name": "Parse Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        440,
+        1400,
         300
       ]
     },
@@ -158,13 +174,13 @@
         },
         "options": {}
       },
-      "id": "openai-cover",
+      "id": "openai-cover-rem",
       "name": "OpenAI Cover Letter",
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.8,
       "position": [
-        1240,
-        180
+        1580,
+        160
       ],
       "credentials": {
         "openAiApi": {
@@ -184,23 +200,115 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
       "position": [
-        1420,
+        1760,
         300
       ]
     },
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Input is the Map row merged (by position) with the OpenAI response, so both\n// are present on $json — nothing from Map is lost. Pull the letter out of the\n// model response, drop the response fields, keep the job row.\nconst { message, content, text, choices, index, finish_reason, role, ...job } = $input.item.json;\nlet cover_letter = '';\ntry {\n  cover_letter = (message?.content ?? content ?? text ?? choices?.[0]?.message?.content ?? '').toString().trim();\n} catch (e) { /* leave empty on any parse issue */ }\nreturn { ...job, cover_letter };"
+        "jsCode": "// Input is the Parse Score row merged (by position) with the OpenAI response, so\n// both are present on $json — nothing from Parse Score is lost. Pull the letter\n// out of the model response, drop the response fields, keep the job row.\nconst { message, content, text, choices, index, finish_reason, role, ...job } = $input.item.json;\nlet cover_letter = '';\ntry {\n  cover_letter = (message?.content ?? content ?? text ?? choices?.[0]?.message?.content ?? '').toString().trim();\n} catch (e) { /* leave empty on any parse issue */ }\nreturn { ...job, cover_letter };"
       },
-      "id": "assemble",
+      "id": "assemble-rem",
       "name": "Assemble",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1600,
+        1940,
         300
       ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{APP_URL}}/api/webhook/jobs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-autohq-token",
+              "value": "{{AUTOHQ_SECRET_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "post-rem",
+      "name": "Send to AutoHQ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "tg-notify",
+              "leftValue": "={{ $json.telegram_notify }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "tg-gate-rem",
+      "name": "Telegram Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "{{TELEGRAM_CHAT_ID}}",
+        "text": "=🎯 {{ $('Assemble').item.json.fit_score }}% — {{ $('Assemble').item.json.title }}\n🏢 {{ $('Assemble').item.json.company }}\n📍 {{ $('Assemble').item.json.location || '—' }}\n🔗 {{ $('Assemble').item.json.url }}\n\n{{ $('Assemble').item.json.score_reason || '' }}",
+        "additionalFields": {}
+      },
+      "id": "tg-notify-rem",
+      "name": "Notify Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2480,
+        200
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "{{TELEGRAM_CREDENTIAL_ID}}",
+          "name": "AutoHQ Telegram"
+        }
+      }
     }
   ],
   "connections": {
@@ -252,23 +360,34 @@
       "main": [
         [
           {
-            "node": "OpenAI Cover Letter",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Combine Job + Letter",
+            "node": "OpenAI Score",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Combine Job + Letter": {
+    "OpenAI Score": {
       "main": [
         [
           {
-            "node": "Assemble",
+            "node": "Parse Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Score": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Cover Letter",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Combine Job + Letter",
             "type": "main",
             "index": 0
           }
@@ -286,6 +405,17 @@
         ]
       ]
     },
+    "Combine Job + Letter": {
+      "main": [
+        [
+          {
+            "node": "Assemble",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Assemble": {
       "main": [
         [
@@ -295,6 +425,29 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "Send to AutoHQ": {
+      "main": [
+        [
+          {
+            "node": "Telegram Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Gate": {
+      "main": [
+        [
+          {
+            "node": "Notify Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     }
   },

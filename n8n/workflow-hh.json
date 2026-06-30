@@ -23,6 +23,35 @@
     },
     {
       "parameters": {
+        "url": "{{APP_URL}}/api/resume?lang=both",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-autohq-token",
+              "value": "{{AUTOHQ_SECRET_TOKEN}}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "get-resume",
+      "name": "Get Resume",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {
         "url": "{{APP_URL}}/api/n8n/hh",
         "sendHeaders": true,
         "headerParameters": {
@@ -146,17 +175,126 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.item.json;\nconst salary = item.salary;\nlet salaryMin = null;\nlet salaryMax = null;\nif (salary) {\n  salaryMin = salary.from || null;\n  salaryMax = salary.to || null;\n  // Convert RUB to USD roughly if needed\n  if (salary.currency === 'RUR') {\n    if (salaryMin) salaryMin = Math.round(salaryMin / 90);\n    if (salaryMax) salaryMax = Math.round(salaryMax / 90);\n  }\n}\n\n// HH list endpoint has no full description — use the snippet (tags stripped).\nconst description = [item.snippet?.requirement, item.snippet?.responsibility]\n  .filter(Boolean).join(' ')\n  .replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 1500);\n\nreturn {\n  title: item.name,\n  company: item.employer?.name || 'Unknown',\n  url: item.alternate_url,\n  location: item.area?.name || null,\n  remote: true,\n  status: 'new',\n  fit_score: null,\n  salary_min: salaryMin,\n  salary_max: salaryMax,\n  source: 'hh',\n  external_id: String(item.id),\n  description,\n  notes: `Source: HH.ru | ID: ${item.id}`\n};",
-        "mode": "runOnceForEachItem"
+        "mode": "runOnceForEachItem",
+        "jsCode": "const item = $input.item.json;\nconst salary = item.salary;\nlet salaryMin = null;\nlet salaryMax = null;\nif (salary) {\n  salaryMin = salary.from || null;\n  salaryMax = salary.to || null;\n  // Convert RUB to USD roughly if needed\n  if (salary.currency === 'RUR') {\n    if (salaryMin) salaryMin = Math.round(salaryMin / 90);\n    if (salaryMax) salaryMax = Math.round(salaryMax / 90);\n  }\n}\n\n// HH list endpoint has no full description — use the snippet (tags stripped).\nconst description = [item.snippet?.requirement, item.snippet?.responsibility]\n  .filter(Boolean).join(' ')\n  .replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 1500);\n\nreturn {\n  title: item.name,\n  company: item.employer?.name || 'Unknown',\n  url: item.alternate_url,\n  location: item.area?.name || null,\n  remote: true,\n  status: 'new',\n  fit_score: null,\n  salary_min: salaryMin,\n  salary_max: salaryMax,\n  source: 'hh',\n  external_id: String(item.id),\n  description,\n  notes: `Source: HH.ru | ID: ${item.id}`\n};"
       },
       "id": "map-hh",
       "name": "Map to AutoHQ format",
       "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         1140,
         300
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{>score}}",
+              "role": "user"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "openai-score-hh",
+      "name": "OpenAI Score",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1320,
+        300
       ],
-      "typeVersion": 2
+      "credentials": {
+        "openAiApi": {
+          "id": "{{OPENAI_CREDENTIAL_ID}}",
+          "name": "AutoHQ OpenAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const job = $('Map to AutoHQ format').item.json;\nconst raw = $input.item.json;\nlet text = '';\ntry { text = (raw.message?.content ?? raw.content ?? raw.text ?? raw.choices?.[0]?.message?.content ?? '').toString(); } catch (e) {}\nlet score = null;\nlet reason = '';\ntry {\n  const parsed = JSON.parse((text.match(/\\{[\\s\\S]*\\}/) || [text])[0]);\n  score = Number(parsed.score);\n  reason = (parsed.reason || '').toString().trim();\n} catch (e) {\n  const m = text.match(/\\d{1,3}/);\n  if (m) score = Number(m[0]);\n}\nscore = Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : null;\nreturn { ...job, fit_score: score, score_reason: reason || null };"
+      },
+      "id": "parse-score-hh",
+      "name": "Parse Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{>cover-letter}}",
+              "role": "user"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "openai-cover-hh",
+      "name": "OpenAI Cover Letter",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1680,
+        160
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "{{OPENAI_CREDENTIAL_ID}}",
+          "name": "AutoHQ OpenAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "merge-hh",
+      "name": "Combine Job + Letter",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1860,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Input is the Parse Score row merged (by position) with the OpenAI response, so\n// both are present on $json — nothing from Parse Score is lost. Pull the letter\n// out of the model response, drop the response fields, keep the job row.\nconst { message, content, text, choices, index, finish_reason, role, ...job } = $input.item.json;\nlet cover_letter = '';\ntry {\n  cover_letter = (message?.content ?? content ?? text ?? choices?.[0]?.message?.content ?? '').toString().trim();\n} catch (e) { /* leave empty on any parse issue */ }\nreturn { ...job, cover_letter };"
+      },
+      "id": "assemble-hh",
+      "name": "Assemble",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2040,
+        300
+      ]
     },
     {
       "parameters": {
@@ -179,31 +317,6 @@
         "specifyBody": "json",
         "jsonBody": "={{ $json }}",
         "options": {
-          "ignore404": false
-        }
-      },
-      "id": "post-hh",
-      "name": "Send to AutoHQ",
-      "type": "n8n-nodes-base.httpRequest",
-      "position": [
-        1680,
-        300
-      ],
-      "typeVersion": 4.2
-    },
-    {
-      "parameters": {
-        "url": "{{APP_URL}}/api/resume?lang=both",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "x-autohq-token",
-              "value": "{{AUTOHQ_SECRET_TOKEN}}"
-            }
-          ]
-        },
-        "options": {
           "response": {
             "response": {
               "responseFormat": "json"
@@ -211,76 +324,69 @@
           }
         }
       },
-      "id": "get-resume",
-      "name": "Get Resume",
+      "id": "post-hh",
+      "name": "Send to AutoHQ",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        420,
+        2220,
         300
       ]
     },
     {
       "parameters": {
-        "modelId": {
-          "__rl": true,
-          "mode": "list",
-          "value": "gpt-4o-mini",
-          "cachedResultName": "gpt-4o-mini"
-        },
-        "messages": {
-          "values": [
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
             {
-              "content": "={{>cover-letter}}",
-              "role": "user"
+              "id": "tg-notify",
+              "leftValue": "={{ $json.telegram_notify }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
-          ]
+          ],
+          "combinator": "and"
         },
         "options": {}
       },
-      "id": "openai-cover",
-      "name": "OpenAI Cover Letter",
-      "type": "@n8n/n8n-nodes-langchain.openAi",
-      "typeVersion": 1.8,
-      "position": [
-        1320,
-        180
-      ],
-      "credentials": {
-        "openAiApi": {
-          "id": "{{OPENAI_CREDENTIAL_ID}}",
-          "name": "AutoHQ OpenAI"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "mode": "combine",
-        "combineBy": "combineByPosition",
-        "options": {}
-      },
-      "id": "merge-hh",
-      "name": "Combine Job + Letter",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3,
-      "position": [
-        1500,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "// Input is the Map row merged (by position) with the OpenAI response, so both\n// are present on $json — nothing from Map is lost. Pull the letter out of the\n// model response, drop the response fields, keep the job row.\nconst { message, content, text, choices, index, finish_reason, role, ...job } = $input.item.json;\nlet cover_letter = '';\ntry {\n  cover_letter = (message?.content ?? content ?? text ?? choices?.[0]?.message?.content ?? '').toString().trim();\n} catch (e) { /* leave empty on any parse issue */ }\nreturn { ...job, cover_letter };"
-      },
-      "id": "assemble",
-      "name": "Assemble",
-      "type": "n8n-nodes-base.code",
+      "id": "tg-gate-hh",
+      "name": "Telegram Gate",
+      "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1680,
+        2400,
         300
       ]
+    },
+    {
+      "parameters": {
+        "chatId": "{{TELEGRAM_CHAT_ID}}",
+        "text": "=🎯 {{ $('Assemble').item.json.fit_score }}% — {{ $('Assemble').item.json.title }}\n🏢 {{ $('Assemble').item.json.company }}\n📍 {{ $('Assemble').item.json.location || '—' }}\n🔗 {{ $('Assemble').item.json.url }}\n\n{{ $('Assemble').item.json.score_reason || '' }}",
+        "additionalFields": {}
+      },
+      "id": "tg-notify-hh",
+      "name": "Notify Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2580,
+        200
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "{{TELEGRAM_CREDENTIAL_ID}}",
+          "name": "AutoHQ Telegram"
+        }
+      }
     }
   ],
   "connections": {
@@ -343,6 +449,28 @@
       "main": [
         [
           {
+            "node": "OpenAI Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Score": {
+      "main": [
+        [
+          {
+            "node": "Parse Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Score": {
+      "main": [
+        [
+          {
             "node": "OpenAI Cover Letter",
             "type": "main",
             "index": 0
@@ -386,6 +514,29 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "Send to AutoHQ": {
+      "main": [
+        [
+          {
+            "node": "Telegram Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Gate": {
+      "main": [
+        [
+          {
+            "node": "Notify Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     }
   },

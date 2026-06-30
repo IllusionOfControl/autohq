@@ -35,8 +35,11 @@
  *   node n8n/sync.cjs [file ...]      # defaults to n8n/workflow-*.json
  *   node n8n/sync.cjs --activate      # also activate each synced workflow
  *
- * Note: the Telegram credential is NOT part of the workflow JSON and must be
- * configured once in n8n by hand.
+ * Telegram: the bot token lives in an n8n credential named "AutoHQ Telegram"
+ * that you create once by hand — it is never in the workflow JSON. The Notify
+ * Telegram node references it; set TELEGRAM_CREDENTIAL_ID to auto-link it on
+ * sync, or link it in the UI. TELEGRAM_CHAT_ID fills the target chat. Both are
+ * optional ({{TELEGRAM_*}} render empty when unset, see OPTIONAL_TOKENS).
  */
 const fs = require('fs')
 const path = require('path')
@@ -59,13 +62,26 @@ const headers = { 'X-N8N-API-KEY': key, 'Content-Type': 'application/json', Acce
 const TOKENS = {
   APP_URL: (process.env.NUXT_PUBLIC_APP_URL || '').replace(/\/$/, ''),
   AUTOHQ_SECRET_TOKEN: process.env.AUTOHQ_SECRET_TOKEN || process.env.NUXT_AUTOHQ_SECRET_TOKEN || '',
+  // Telegram is optional (see OPTIONAL_TOKENS). The bot token itself lives in an
+  // n8n credential named "AutoHQ Telegram"; these only fill the node's chat id
+  // and (if you paste it) that credential's id so sync can auto-link it.
+  TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID || '',
+  TELEGRAM_CREDENTIAL_ID: process.env.TELEGRAM_CREDENTIAL_ID || '',
 }
 /** Env var that backs each token, for actionable error messages. */
 const ENV_FOR = {
   APP_URL: 'NUXT_PUBLIC_APP_URL',
   AUTOHQ_SECRET_TOKEN: 'AUTOHQ_SECRET_TOKEN',
   OPENAI_CREDENTIAL_ID: 'OPENAI_API_KEY',
+  TELEGRAM_CHAT_ID: 'TELEGRAM_CHAT_ID',
+  TELEGRAM_CREDENTIAL_ID: 'TELEGRAM_CREDENTIAL_ID',
 }
+/**
+ * Tokens that may be empty. A missing one renders as '' (with a warning) instead
+ * of failing the whole sync — so the Telegram alert path stays optional: link
+ * the credential and set the chat id in n8n, or leave them and ignore the node.
+ */
+const OPTIONAL_TOKENS = new Set(['TELEGRAM_CHAT_ID', 'TELEGRAM_CREDENTIAL_ID'])
 
 /** Directory holding {{>name}} prompt includes. */
 const PROMPTS_DIR = path.join(__dirname, 'prompts')
@@ -82,14 +98,23 @@ const OPENAI_CRED_NAME = 'AutoHQ OpenAI'
  */
 function renderTokens(text, file) {
   const missing = new Set()
+  const skipped = new Set()
   const out = text.replace(/\{\{([A-Z0-9_]+)\}\}/g, (m, name) => {
     const val = TOKENS[name]
-    if (!val) { missing.add(name); return m }
+    if (!val) {
+      if (OPTIONAL_TOKENS.has(name)) { skipped.add(name); return '' }
+      missing.add(name)
+      return m
+    }
     return val
   })
   if (missing.size) {
     const lines = [...missing].map(n => `    {{${n}}}  → set ${ENV_FOR[n] || n} in .env`)
     throw new Error(`${path.basename(file)}: unresolved placeholders:\n${lines.join('\n')}`)
+  }
+  if (skipped.size) {
+    const names = [...skipped].map(n => ENV_FOR[n] || n).join(', ')
+    console.warn(`⚠ ${path.basename(file)}: Telegram alerts not configured (${names} unset) — the Notify Telegram node will stay unlinked`)
   }
   return out
 }

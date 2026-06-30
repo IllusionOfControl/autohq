@@ -228,7 +228,6 @@ The repo is Vercel-ready ([`vercel.json`](vercel.json)):
 
 The [`n8n/`](n8n/) folder contains starter workflow exports and helper scripts.
 
-<<<<<<< HEAD
 1. **Push the workflows via the Public API** (recommended) — the JSON files are
    templates: they carry `{{APP_URL}}` and `{{AUTOHQ_SECRET_TOKEN}}` placeholders that
    `n8n:sync` renders from your `.env` at push time, so each workflow already points
@@ -251,19 +250,25 @@ The [`n8n/`](n8n/) folder contains starter workflow exports and helper scripts.
    by `x-autohq-token`), so you change them on the *Control* page, not in n8n. The other workflows
    (Remotive, etc.) don't pull live config — they fetch and POST directly; the webhook still enforces
    the source toggle and Telegram threshold on ingest (see below).
-3. **AI cover letters are already wired** — each workflow fetches the live resume (`GET /api/resume`),
-   builds a language-aware prompt from the job description, and calls OpenAI via the dedicated
-   **OpenAI** node (`@n8n/n8n-nodes-langchain.openAi`, *Message a Model*) before posting the result
-   with a `cover_letter`. The credential is provisioned for you: `n8n:sync` creates an n8n OpenAI
-   credential named **AutoHQ OpenAI** from `OPENAI_API_KEY` / `OPENAI_BASE_URL` and wires its id into
-   both workflows — no manual credential setup. (The id is cached in `n8n/.credentials.json`, which is
-   gitignored; the Public API can't list or patch credentials, so a rotated key is applied by
-   delete + recreate on the next sync.) The prompt itself lives in
-   [`n8n/prompts/cover-letter.txt`](n8n/prompts/cover-letter.txt) and is injected at push time via the
-   `{{>cover-letter}}` include, so you tune it in one place for both workflows. Optional next step: add
-   an *OpenAI Score* node that returns a `fit_score`, and a Telegram node gated on the webhook's
-   `telegram_notify` response.
-4. **Activate** the workflows. They'll run on their cron schedule and your dashboard fills up.
+3. **AI scoring + cover letters are already wired** — each workflow fetches the live resume
+   (`GET /api/resume`), then runs two OpenAI nodes (`@n8n/n8n-nodes-langchain.openAi`, *Message a
+   Model*):
+   - an **OpenAI Score** node grades every posting 0–100 against your resume — a *Parse Score* code
+     node turns its JSON reply into `fit_score` + `score_reason`;
+   - an **OpenAI Cover Letter** node writes a language-aware `cover_letter`.
+   The OpenAI credential is provisioned for you: `n8n:sync` creates an n8n credential named
+   **AutoHQ OpenAI** from `OPENAI_API_KEY` / `OPENAI_BASE_URL` and wires its id into both workflows —
+   no manual setup. (The id is cached in `n8n/.credentials.json`, which is gitignored; the Public API
+   can't list or patch credentials, so a rotated key is applied by delete + recreate on the next
+   sync.) Both prompts live in [`n8n/prompts/`](n8n/prompts/) ([`score.txt`](n8n/prompts/score.txt),
+   [`cover-letter.txt`](n8n/prompts/cover-letter.txt)) and are injected at push time via the
+   `{{>score}}` / `{{>cover-letter}}` includes, so you tune them in one place for both workflows.
+4. **Telegram alerts are already wired (optional)** — after posting to the webhook, a *Telegram Gate*
+   (IF) checks the webhook's `telegram_notify` response and a **Notify Telegram** node pings you only
+   for jobs at or above your `telegram_min_score`. The bot token lives in an n8n credential named
+   **AutoHQ Telegram** you create once by hand; set `TELEGRAM_CHAT_ID` (and optionally
+   `TELEGRAM_CREDENTIAL_ID`) in `.env`, or leave them blank to skip Telegram entirely.
+5. **Activate** the workflows. They'll run on their cron schedule and your dashboard fills up.
 
 The webhook respects your **live settings**: a posting is skipped if its source is disabled in the
 *Control* page, and Telegram only fires when `fit_score ≥ telegram_min_score` (default 70) — both
