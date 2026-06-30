@@ -10,6 +10,7 @@ services:
       - NUXT_SESSION_PASSWORD=${NUXT_SESSION_PASSWORD}
       - NUXT_OAUTH_GITHUB_CLIENT_ID=${NUXT_OAUTH_GITHUB_CLIENT_ID}
       - NUXT_OAUTH_GITHUB_CLIENT_SECRET=${NUXT_OAUTH_GITHUB_CLIENT_SECRET}
+      - OWNER_GITHUB=${OWNER_GITHUB}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}
       - RESUME_REPO=${RESUME_REPO}
       - RESUME_PATH_EN=${RESUME_PATH_EN}
@@ -20,6 +21,20 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  migrate:
+    build:
+      context: .
+      target: builder
+    command: [ "npm", "run", "db:migrate" ]
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/autohq
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
 
   db:
     image: postgres:17-alpine
@@ -32,6 +47,7 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - pg_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
@@ -50,16 +66,15 @@ services:
       - N8N_PROTOCOL=http
       - NODE_ENV=production
       - WEBHOOK_URL=http://localhost:5678/
-      - GENERIC_TIMEZONE=Europe/Moskow
+      - GENERIC_TIMEZONE=Europe/Moscow
 
       - DB_TYPE=postgresdb
-      - DB_POSTGRESDB_DATABASE=autohq
+      - DB_POSTGRESDB_DATABASE=autohq_n8n
       - DB_POSTGRESDB_HOST=db
       - DB_POSTGRESDB_PORT=5432
       - DB_POSTGRESDB_USER=postgres
       - DB_POSTGRESDB_PASSWORD=postgres
 
-      # Basic auth (опционально, но рекомендуется для безопасности)
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER=${N8N_AUTH_USER:-admin}
       - N8N_BASIC_AUTH_PASSWORD=${N8N_AUTH_PASSWORD:-changeme}
