@@ -88,8 +88,8 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "x-webhook-secret",
-              "value": "{{WEBHOOK_SECRET}}"
+              "name": "x-autohq-token",
+              "value": "{{AUTOHQ_SECRET_TOKEN}}"
             },
             {
               "name": "Content-Type",
@@ -114,6 +114,15 @@
     {
       "parameters": {
         "url": "{{APP_URL}}/api/resume?lang=both",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-autohq-token",
+              "value": "{{AUTOHQ_SECRET_TOKEN}}"
+            }
+          ]
+        },
         "options": {
           "response": {
             "response": {

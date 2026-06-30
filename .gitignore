@@ -25,3 +25,6 @@ logs
 
 # Local id cache for n8n credentials created by n8n/sync.cjs
 n8n/.credentials.json
+
+# Generated repo dump (repomix)
+repomix-output.xml

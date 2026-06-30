@@ -25,7 +25,7 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    webhookSecret: process.env.WEBHOOK_SECRET ?? '',
+    autohqSecretToken: process.env.AUTOHQ_SECRET_TOKEN ?? '',
     public: {
       useSampleData: false,
       n8nUrl: '',          // example: https://n8n.example.com

@@ -61,20 +61,21 @@ It's built as two halves that talk over a single webhook:
 ## Architecture
 
 ```
-                          ┌──────────────────────────────────────────┐
-                          │                  n8n                       │
-   ⏰ weekday cron  ─────▶ │  Fetch (Remotive / Arbeitnow / HH / Djinni)│
-                          │            │                               │
-                          │            ▼                               │
-                          │   OpenAI: score 1–100 + cover letter       │
-                          │            │                               │
-                          │   ┌────────┴────────┐                      │
-                          │   ▼                 ▼                      │
+                          ┌──────────────────────────────────────────────┐
+                          │                  n8n                         │
+   ⏰ weekday cron  ─────▶│  Fetch (Remotive / Arbeitnow / HH / Djinni)  │
+                          │            │                                 │
+                          │            ▼                                 │
+                          │   OpenAI: score 1–100 + cover letter         │
+                          │            │                                 │
+                          │   ┌────────┴────────┐                        │
+                          │   ▼                 ▼                        │
                           │  Telegram      POST /api/webhook/jobs ──────┼──┐
-                          │  (score ≥ N)        (x-webhook-secret)      │  │
+                          │  (score ≥ N)        (x-autohq-token)        │  │
                           └─────────────────────────────────────────────┘  │
                                           ▲                                 │
-   reads keywords / threshold / sources   │  GET /api/config                │
+   HH: live config + fresh OAuth token    │  GET /api/n8n/hh                 │
+   (keywords / lookback / hh_access_token) │  (x-autohq-token)               │
                                           └─────────────────────────────────┘
                                                                             │
                           ┌─────────────────────────────────────────────────▼─┐
@@ -86,7 +87,7 @@ It's built as two halves that talk over a single webhook:
                           │     server API (postgres) + GitHub OAuth session   │
                           │                       │                            │
                           │                       ▼                            │
-                          │                  PostgreSQL                         │
+                          │                  PostgreSQL                        │
                           │   (jobs, app_config, source_settings, profile)     │
                           └────────────────────────────────────────────────────┘
                                           ▲
@@ -200,8 +201,9 @@ NUXT_PUBLIC_TELEGRAM_BOT=@your_bot
 NUXT_PUBLIC_APP_URL=https://your-app.example.com
 
 # ── Server-only ────────────────────────────────────────
-# Shared secret n8n must send in the `x-webhook-secret` header
-WEBHOOK_SECRET=choose-a-long-random-string
+# Shared secret n8n must send in the `x-autohq-token` header to reach the
+# webhook, /api/n8n/* and /api/resume.
+AUTOHQ_SECRET_TOKEN=choose-a-long-random-string
 
 # Optional: live-resume feature (reads Resume *.md from a GitHub repo)
 RESUME_REPO=your-username/your-private-repo
@@ -238,12 +240,12 @@ The repo is Vercel-ready ([`vercel.json`](vercel.json)):
 The [`n8n/`](n8n/) folder contains starter workflow exports and helper scripts.
 
 1. **Push the workflows via the Public API** (recommended) — the JSON files are
-   templates: they carry `{{APP_URL}}` and `{{WEBHOOK_SECRET}}` placeholders that
+   templates: they carry `{{APP_URL}}` and `{{AUTOHQ_SECRET_TOKEN}}` placeholders that
    `n8n:sync` renders from your `.env` at push time, so each workflow already points
    at your app with the right webhook secret — no manual node editing.
    ```bash
    # set N8N_API_URL + N8N_API_KEY (Settings → n8n API), plus
-   # NUXT_PUBLIC_APP_URL + WEBHOOK_SECRET + OPENAI_API_KEY in .env first
+   # NUXT_PUBLIC_APP_URL + AUTOHQ_SECRET_TOKEN + OPENAI_API_KEY in .env first
    npm run n8n:sync            # create/update by name
    npm run n8n:sync -- --activate
    ```
@@ -253,10 +255,12 @@ The [`n8n/`](n8n/) folder contains starter workflow exports and helper scripts.
 
    *(Alternatively, import [`n8n/workflow-remotive.json`](n8n/workflow-remotive.json) /
    [`n8n/workflow-hh.json`](n8n/workflow-hh.json) via the UI's *Import from File* — but then
-   you must fill the `{{APP_URL}}` / `{{WEBHOOK_SECRET}}` placeholders in the nodes by hand.)*
-2. **Live settings are already wired** — keywords, the search period, and (for HH) a fresh OAuth
-   token are read at runtime from the app via a *Get Config* node baked into each workflow, so you
-   change them on the *Control* page, not in n8n.
+   you must fill the `{{APP_URL}}` / `{{AUTOHQ_SECRET_TOKEN}}` placeholders in the nodes by hand.)*
+2. **Live settings are already wired (HH)** — the HH workflow reads keywords, the search period and
+   a fresh HH OAuth token at runtime from a single *Get Config* node (`GET /api/n8n/hh`, authenticated
+   by `x-autohq-token`), so you change them on the *Control* page, not in n8n. The other workflows
+   (Remotive, etc.) don't pull live config — they fetch and POST directly; the webhook still enforces
+   the source toggle and Telegram threshold on ingest (see below).
 3. **AI cover letters are already wired** — each workflow fetches the live resume (`GET /api/resume`),
    builds a language-aware prompt from the job description, and calls OpenAI via the dedicated
    **OpenAI** node (`@n8n/n8n-nodes-langchain.openAi`, *Message a Model*) before posting the result
@@ -272,8 +276,10 @@ The [`n8n/`](n8n/) folder contains starter workflow exports and helper scripts.
 4. **Activate** the workflows. They'll run on their cron schedule and your dashboard fills up.
 
 The webhook respects your **live settings**: a posting is skipped if its source is disabled in the
-*Control* page, and Telegram only fires when `fit_score ≥ telegram_min_score` (default 70). n8n reads
-the current keywords and threshold from `GET /api/config` on each run.
+*Control* page, and Telegram only fires when `fit_score ≥ telegram_min_score` (default 70) — both
+enforced server-side in `POST /api/webhook/jobs` against `app_config` / `source_settings` on every
+ingest, regardless of which workflow sent it. The HH workflow additionally reads the current keywords
+and lookback up-front via `GET /api/n8n/hh`.
 
 ---
 
@@ -338,7 +344,7 @@ before exposing it more widely:
   the server middleware (`server/middleware/auth.ts`) requires a valid session for every data
   endpoint. There is no per-user data isolation — for a team you'd add `user_id`-scoped rows and
   filter every query by the logged-in user.
-- **The webhook auth is a single shared secret** (`x-webhook-secret`). Keep `WEBHOOK_SECRET` long and
+- **The webhook auth is a single shared secret** (`x-autohq-token`). Keep `AUTOHQ_SECRET_TOKEN` long and
   private; rotate if leaked.
 - **Never commit real keys.** `.env` is gitignored. Keep OpenAI / n8n / Telegram secrets in n8n
   credentials or environment variables — never inline them in tracked files.

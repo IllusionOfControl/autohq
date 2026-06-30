@@ -6,12 +6,12 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/autohq
       - NUXT_SESSION_PASSWORD=${NUXT_SESSION_PASSWORD}
       - NUXT_OAUTH_GITHUB_CLIENT_ID=${NUXT_OAUTH_GITHUB_CLIENT_ID}
       - NUXT_OAUTH_GITHUB_CLIENT_SECRET=${NUXT_OAUTH_GITHUB_CLIENT_SECRET}
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/autohq
       - OWNER_GITHUB=${OWNER_GITHUB}
-      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - AUTOHQ_SECRET_TOKEN=${AUTOHQ_SECRET_TOKEN}
       - RESUME_REPO=${RESUME_REPO}
       - RESUME_PATH_EN=${RESUME_PATH_EN}
       - RESUME_PATH_RU=${RESUME_PATH_RU}

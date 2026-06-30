@@ -6,7 +6,7 @@
  * stable instance id. So we list workflows, match on `name`, then PUT or POST.
  *
  * Templating: workflow files may contain {{TOKEN}} placeholders (e.g.
- * {{APP_URL}}, {{WEBHOOK_SECRET}}) that are rendered from env right before
+ * {{APP_URL}}, {{AUTOHQ_SECRET_TOKEN}}) that are rendered from env right before
  * push — so the committed JSON stays free of instance URLs and secrets, and
  * the same files target any environment. See TOKENS below.
  *
@@ -27,7 +27,7 @@
  *   N8N_API_URL          base URL of the instance, e.g. https://n8n.example.com
  *   N8N_API_KEY          Public API key (n8n → Settings → n8n API)
  *   NUXT_PUBLIC_APP_URL  app origin; fills {{APP_URL}} (webhook/config URLs)
- *   WEBHOOK_SECRET       shared webhook secret; fills {{WEBHOOK_SECRET}}
+ *   AUTOHQ_SECRET_TOKEN  shared secret; fills {{AUTOHQ_SECRET_TOKEN}}
  *   OPENAI_API_KEY       OpenAI key; used to (re)create the OpenAI credential
  *   OPENAI_BASE_URL      OpenAI-compatible base URL (default api.openai.com/v1)
  *
@@ -58,12 +58,12 @@ const headers = { 'X-N8N-API-KEY': key, 'Content-Type': 'application/json', Acce
 /** {{TOKEN}} placeholders in workflow files, resolved from env at push time. */
 const TOKENS = {
   APP_URL: (process.env.NUXT_PUBLIC_APP_URL || '').replace(/\/$/, ''),
-  WEBHOOK_SECRET: process.env.WEBHOOK_SECRET || process.env.NUXT_WEBHOOK_SECRET || '',
+  AUTOHQ_SECRET_TOKEN: process.env.AUTOHQ_SECRET_TOKEN || process.env.NUXT_AUTOHQ_SECRET_TOKEN || '',
 }
 /** Env var that backs each token, for actionable error messages. */
 const ENV_FOR = {
   APP_URL: 'NUXT_PUBLIC_APP_URL',
-  WEBHOOK_SECRET: 'WEBHOOK_SECRET',
+  AUTOHQ_SECRET_TOKEN: 'AUTOHQ_SECRET_TOKEN',
   OPENAI_CREDENTIAL_ID: 'OPENAI_API_KEY',
 }
 
