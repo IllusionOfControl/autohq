@@ -429,7 +429,7 @@ onMounted(() => { loadConfig(); loadSources(); loadLastImport(); loadHhStatus() 
           </Button>
         </div>
         <div class="flex gap-2">
-          <code class="flex-1 rounded-md bg-muted px-3 py-2 text-xs font-mono break-all">x-webhook-secret: &lt;your WEBHOOK_SECRET&gt;</code>
+          <code class="flex-1 rounded-md bg-muted px-3 py-2 text-xs font-mono break-all">x-webhook-secret: &lt;your AUTOHQ_SECRET_TOKEN&gt;</code>
           <Button variant="outline" size="sm" @click="copy('x-webhook-secret', 'secret')">
             <Icon :name="copied === 'secret' ? 'lucide:check' : 'lucide:copy'" class="size-4" />
           </Button>
